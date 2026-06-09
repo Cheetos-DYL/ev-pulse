@@ -26,11 +26,55 @@ export interface Report {
   created_at: string;
 }
 
+export interface RegionStat {
+  region: string;
+  count: number;
+}
+
+export interface CategoryStat {
+  category: string;
+  count: number;
+}
+
 export interface Stats {
   total_articles: number;
-  by_region: { region: string; count: number }[];
-  by_category: { category: string; count: number }[];
+  by_region: RegionStat[];
+  by_category: CategoryStat[];
+  latest_report: Report | null;
 }
+
+export interface Trend {
+  month: string;
+  region: string;
+  article_count: number;
+  avg_relevance: number;
+  top_category: string;
+}
+
+export interface ComparisonResult {
+  month_a: string;
+  month_b: string;
+  a: { total: number; regions: Record<string, { count: number; avg_relevance: number; top_category: string }> };
+  b: { total: number; regions: Record<string, { count: number; avg_relevance: number; top_category: string }> };
+  change_percent: number;
+}
+
+export interface TimelineEntry {
+  month: string;
+  [region: string]: number | string;
+}
+
+const REGION_META: Record<string, { name: string; flag: string }> = {
+  korea: { name: 'South Korea', flag: '🇰🇷' },
+  uae: { name: 'UAE / Middle East', flag: '🇦🇪' },
+  southeast_asia: { name: 'Southeast Asia', flag: '🌏' },
+  japan: { name: 'Japan', flag: '🇯🇵' },
+  australia: { name: 'Australia', flag: '🇦🇺' },
+  taiwan: { name: 'Taiwan', flag: '🇹🇼' },
+  africa: { name: 'Africa / South Africa', flag: '🌍' },
+  brazil: { name: 'Brazil', flag: '🇧🇷' },
+  mexico: { name: 'Mexico / Central America', flag: '🇲🇽' },
+};
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${url}`, options);
@@ -83,4 +127,15 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
       }
     ),
+
+  trends: (limit?: number) =>
+    fetchJSON<{ trends: Trend[] }>(`/trends${limit ? `?limit=${limit}` : ''}`),
+
+  timeline: () =>
+    fetchJSON<{ timeline: TimelineEntry[] }>('/trends/timeline'),
+
+  compare: (month_a: string, month_b?: string) =>
+    fetchJSON<ComparisonResult>(`/trends/compare?month_a=${month_a}${month_b ? `&month_b=${month_b}` : ''}`),
 };
+
+export { REGION_META };

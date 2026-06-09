@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from openai import OpenAI
 
-from .db import get_articles, insert_report
+from .db import get_articles, insert_report, record_monthly_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +25,13 @@ def generate_monthly_report(month: str = None) -> str:
     # Try LLM report generation
     report = _llm_report(articles, month)
     if report:
+        record_monthly_metrics(month, articles)
         insert_report(month, report, len(articles))
         return report
 
     # Fallback: structured text report
     report = _structured_report(articles, month)
+    record_monthly_metrics(month, articles)
     insert_report(month, report, len(articles))
     return report
 

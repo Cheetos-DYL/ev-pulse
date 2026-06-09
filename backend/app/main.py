@@ -13,7 +13,9 @@ from fastapi.responses import FileResponse
 
 from .db import (
     init_db, insert_article, get_articles, get_article_by_id,
-    get_stats, get_reports, get_report_by_month
+    get_stats, get_reports, get_report_by_month,
+    get_monthly_trends, get_month_comparison, get_all_region_timeline,
+    record_monthly_metrics
 )
 from .scraper import collect_all_regions
 from .analyzer import batch_analyze
@@ -163,6 +165,29 @@ def generate_report(month: str = None):
 @app.get("/api/stats")
 def stats():
     return get_stats()
+
+
+# ─── Trends & Comparison ─────────────────────────
+
+@app.get("/api/trends")
+def trends(limit: int = 12):
+    """Monthly aggregated metrics over time."""
+    return {"trends": get_monthly_trends(limit=limit)}
+
+
+@app.get("/api/trends/timeline")
+def region_timeline():
+    """Article count per region over time (for line charts)."""
+    return {"timeline": get_all_region_timeline()}
+
+
+@app.get("/api/trends/compare")
+def compare(month_a: str, month_b: str = None):
+    """Compare two months."""
+    if not month_b:
+        from datetime import datetime
+        month_b = datetime.now().strftime("%Y-%m")
+    return get_month_comparison(month_a, month_b)
 
 
 @app.get("/api/regions")

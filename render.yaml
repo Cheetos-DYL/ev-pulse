@@ -3,11 +3,14 @@ services:
     name: ev-pulse
     env: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      cd ../frontend && npm install && npm run build && cd ../backend && pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
+      - key: NODE_VERSION
+        value: "22"
       - key: LLM_API_KEY
         sync: false
       - key: LLM_BASE_URL

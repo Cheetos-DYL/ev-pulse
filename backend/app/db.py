@@ -108,6 +108,110 @@ def get_article_by_id(article_id: int):
         return dict(row) if row else None
 
 
+def init_trends_table():
+    with get_connection() as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS monthly_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                month TEXT NOT NULL,
+                region TEXT NOT NULL,
+                article_count INTEGER DEFAULT 0,
+                avg_relevance REAL DEFAULT 0,
+                top_category TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(month, region)
+            );
+            CREATE INDEX IF NOT EXISTS idx_metrics_month ON monthly_metrics(month);
+            CREATE INDEX IF NOT EXISTS idx_metrics_region ON monthly_metrics(region);
+        """)
+
+
+def record_monthly_metrics(month: str, articles: list[dict]):
+    """Record per-region metrics for trend tracking."""
+    init_trends_table()
+    regions = {}
+    for a in articles:
+        r = a['region']
+        if r not in regions:
+            regions[r] = {'count': 0, 'scores': [], 'categories': {}}
+        regions[r]['count'] += 1
+        regions[r]['scores'].append(a.get('relevance_score', 0))
+        cat = a.get('category', 'other')
+        regions[r]['categories'][cat] = regions[r]['categories'].get(cat, 0) + 1
+
+    with get_connection() as conn:
+        for region, data in regions.items():
+            avg_score = sum(data['scores']) / len(data['scores']) if data['scores'] else 0
+            top_cat = max(data['categories'], key=data['categories'].get) if data['categories'] else 'other'
+            conn.execute(
+                """INSERT OR REPLACE INTO monthly_metrics 
+                   (month, region, article_count, avg_relevance, top_category)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (month, region, data['count'], round(avg_score, 2), top_cat)
+            )
+
+
+def get_monthly_trends(limit: int = 12) -> list[dict]:
+    """Get monthly aggregated metrics over time for trend visualization."""
+    init_trends_table()
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT month, region, article_count, avg_relevance, top_category
+               FROM monthly_metrics
+               ORDER BY month DESC, region ASC
+               LIMIT ?""",
+            (limit * 20,)  # generous limit
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_month_comparison(month_a: str, month_b: str) -> dict:
+    """Compare two months: article counts, top regions, category shifts."""
+    trends = get_monthly_trends(limit=24)
+    months_data = {}
+    for t in trends:
+        m = t['month']
+        if m not in months_data:
+            months_data[m] = {'total': 0, 'regions': {}}
+        months_data[m]['total'] += t['article_count']
+        months_data[m]['regions'][t['region']] = {
+            'count': t['article_count'],
+            'avg_relevance': t['avg_relevance'],
+            'top_category': t['top_category'],
+        }
+
+    def _safe(month):
+        return months_data.get(month, {'total': 0, 'regions': {}})
+
+    return {
+        "month_a": month_a,
+        "month_b": month_b,
+        "a": _safe(month_a),
+        "b": _safe(month_b),
+        "change_percent": (
+            round((_safe(month_b)['total'] - _safe(month_a)['total']) / max(_safe(month_a)['total'], 1) * 100, 1)
+            if _safe(month_a)['total'] > 0 else 0
+        )
+    }
+
+
+def get_all_region_timeline() -> list[dict]:
+    """Get article counts per region over time for line charts."""
+    trends = get_monthly_trends(limit=60)  # 5 years worth
+    timeline = {}
+    for t in trends:
+        m = t['month']
+        if m not in timeline:
+            timeline[m] = {}
+        timeline[m][t['region']] = t['article_count']
+    result = []
+    for month in sorted(timeline.keys()):
+        entry = {"month": month}
+        entry.update(timeline[month])
+        result.append(entry)
+    return result
+
+
 def get_stats():
     with get_connection() as conn:
         total = conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
@@ -117,10 +221,13 @@ def get_stats():
         by_category = [dict(r) for r in conn.execute(
             "SELECT category, COUNT(*) as count FROM articles GROUP BY category ORDER BY count DESC"
         ).fetchall()]
+        # Latest report
+        latest = conn.execute("SELECT * FROM reports ORDER BY month DESC LIMIT 1").fetchone()
         return {
             "total_articles": total,
             "by_region": by_region,
-            "by_category": by_category
+            "by_category": by_category,
+            "latest_report": dict(latest) if latest else None
         }
 
 
