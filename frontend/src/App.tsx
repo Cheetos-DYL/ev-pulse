@@ -32,12 +32,9 @@ export default function App() {
   return (
     <div className="app">
       <nav className="top-nav">
-        <div className="logo" onClick={() => navigate('home')} style={{ cursor: 'pointer' }}>
+        <div className="logo" onClick={() => navigate('home')}>
           <span className="logo-icon">⚡</span>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>EV Pulse</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>Charging Intelligence</div>
-          </div>
+          <span>EV Pulse</span>
         </div>
         <div className="nav-links">
           {(['home', 'articles', 'reports', 'compare', 'regions'] as Page[]).map(p => (
@@ -69,7 +66,7 @@ export default function App() {
 }
 
 /* ════════════════════════════════════════════════
-   Home — Public-facing landing
+   Home
    ════════════════════════════════════════════════ */
 
 function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => void }) {
@@ -78,12 +75,9 @@ function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => voi
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.stats().then(s => {
-      setStats(s);
-    });
-    api.articles({ limit: 8, min_relevance: 5 }).then(a => {
-      setLatestArticles(a.articles);
-    }).finally(() => setLoading(false));
+    api.stats().then(s => setStats(s));
+    api.articles({ limit: 6, min_relevance: 5 }).then(a => setLatestArticles(a.articles))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="loading"><div className="spinner" /> Loading intelligence...</div>;
@@ -93,7 +87,9 @@ function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => voi
       {/* Hero */}
       <div className="hero">
         <h1 className="hero-title">EV Charging Intelligence</h1>
-        <p className="hero-subtitle">Monitoring EV charging services, market trends, and policy across 9 emerging markets</p>
+        <p className="hero-subtitle">
+          Monitoring EV charging services, market trends, and policy across 9 emerging markets
+        </p>
         {stats && (
           <div className="hero-stats">
             <div className="hero-stat">
@@ -114,27 +110,33 @@ function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => voi
 
       {/* Latest Report */}
       {stats?.latest_report && (
-        <div className="card card-accent" style={{ cursor: 'pointer' }} onClick={() => onNavigate('report-detail', stats.latest_report!.month)}>
+        <div
+          className="card card-accent"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate('report-detail', stats.latest_report!.month)}
+        >
           <div className="card-header">
-            <h2>📑 Latest Report — {fmtMonth(stats.latest_report.month)}</h2>
+            <span className="card-title" style={{ fontSize: 18, fontWeight: 600 }}>
+              📑 {fmtMonth(stats.latest_report.month)} Report
+            </span>
             <span className="badge badge-region">{stats.latest_report.article_count} articles</span>
           </div>
           <div className="report-excerpt">
-            {stats.latest_report.content.slice(0, 600)}
-            {stats.latest_report.content.length > 600 ? '...' : ''}
+            {stats.latest_report.content.slice(0, 500)}
+            {stats.latest_report.content.length > 500 ? '...' : ''}
           </div>
-          <div className="card-footer-link">Read full report →</div>
+          <span className="card-footer-link">Read full report →</span>
         </div>
       )}
 
-      {/* Region Overview */}
-      <h2 style={{ margin: '32px 0 16px' }}>🌍 Regions</h2>
+      {/* Regions */}
+      <div className="section-heading">🌍 Regions</div>
       <div className="region-grid">
         {Object.entries(REGION_META).map(([key, meta]) => {
           const regionStat = stats?.by_region.find(r => r.region === key);
           return (
             <div key={key} className="region-card" onClick={() => onNavigate('region-detail', key)}>
-              <div className="region-card-flag">{meta.flag}</div>
+              <span className="region-card-flag">{meta.flag}</span>
               <div className="region-card-name">{meta.name}</div>
               <div className="region-card-count">{regionStat?.count || 0} articles</div>
             </div>
@@ -143,32 +145,46 @@ function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => voi
       </div>
 
       {/* Latest Articles */}
-      <h2 style={{ margin: '32px 0 16px' }}>📰 Latest Intelligence</h2>
-      {latestArticles.map(a => (
-        <div key={a.id} className="card">
-          <div className="card-header">
-            <a href={a.url} target="_blank" rel="noopener noreferrer" className="card-title">
-              {a.title}
-            </a>
-            <span className={`badge-score badge ${a.relevance_score >= 7 ? 'high' : 'medium'}`}>
-              {a.relevance_score.toFixed(1)}
-            </span>
-          </div>
-          {a.summary && <div className="card-summary">{a.summary}</div>}
-          <div className="card-meta">
-            <span className="badge badge-region">{REGION_META[a.region]?.flag} {REGION_META[a.region]?.name || a.region}</span>
-            <span className={`badge badge-category ${a.category}`}>{CATEGORIES[a.category] || a.category}</span>
-            <span className="card-source">{a.source}</span>
-            <span className="card-date">{a.collected_at?.slice(0, 10)}</span>
-          </div>
-        </div>
-      ))}
+      <div className="section-heading">📰 Latest Intelligence</div>
+      {latestArticles.map(a => <ArticleCard key={a.id} article={a} />)}
     </div>
   );
 }
 
 /* ════════════════════════════════════════════════
-   Articles
+   Article Card (reusable)
+   ════════════════════════════════════════════════ */
+
+function ArticleCard({ article }: { article: Article }) {
+  const scoreClass = article.relevance_score >= 7 ? 'high' : article.relevance_score >= 4 ? 'medium' : 'low';
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <a href={article.url} target="_blank" rel="noopener noreferrer" className="card-title">
+          {article.title}
+        </a>
+        <span className={`badge-score badge ${scoreClass}`}>
+          {article.relevance_score.toFixed(1)}
+        </span>
+      </div>
+      {article.summary && <div className="card-summary">{article.summary}</div>}
+      <div className="card-meta">
+        <span className="badge badge-region">
+          {REGION_META[article.region]?.flag} {REGION_META[article.region]?.name || article.region}
+        </span>
+        <span className={`badge badge-category ${article.category}`}>
+          {CATEGORIES[article.category] || article.category}
+        </span>
+        <span className="card-source">{article.source}</span>
+        <span className="card-date">{article.collected_at?.slice(0, 10)}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════
+   Articles Page
    ════════════════════════════════════════════════ */
 
 function ArticlesPage() {
@@ -192,20 +208,23 @@ function ArticlesPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 24 }}>📰 Article Archive</h1>
+      <h1 className="page-title">📰 Article Archive</h1>
+      <p className="page-subtitle">Browse EV charging news from all regions</p>
 
       <div className="filters">
-        <button className={`filter-btn ${!regionFilter ? 'active' : ''}`} onClick={() => setRegionFilter('')}>All Regions</button>
+        <button className={`filter-btn ${!regionFilter ? 'active' : ''}`} onClick={() => setRegionFilter('')}>All</button>
         {Object.entries(REGION_META).map(([k, v]) => (
-          <button key={k} className={`filter-btn ${regionFilter === k ? 'active' : ''}`} onClick={() => setRegionFilter(k)}>{v.flag} {v.name}</button>
+          <button key={k} className={`filter-btn ${regionFilter === k ? 'active' : ''}`} onClick={() => setRegionFilter(k)}>
+            {v.flag} {v.name.split(' ')[0]}
+          </button>
         ))}
       </div>
-      <div className="filters">
+      <div className="filters" style={{ marginBottom: 24 }}>
         <button className={`filter-btn ${!categoryFilter ? 'active' : ''}`} onClick={() => setCategoryFilter('')}>All Categories</button>
-        {Object.entries(CATEGORIES).map(([k, v]) => (
-          <button key={k} className={`filter-btn ${categoryFilter === k ? 'active' : ''}`} onClick={() => setCategoryFilter(k)}>{v}</button>
-        ))}
-        <button className={`filter-btn ${minScore >= 5 ? 'active' : ''}`} onClick={() => setMinScore(minScore >= 5 ? 0 : 5)}>⭐ Relevance ≥ 5</button>
+        <button className={`filter-btn ${categoryFilter === 'service' ? 'active' : ''}`} onClick={() => setCategoryFilter('service')}>⚡ Service</button>
+        <button className={`filter-btn ${categoryFilter === 'trend' ? 'active' : ''}`} onClick={() => setCategoryFilter('trend')}>📈 Trend</button>
+        <button className={`filter-btn ${categoryFilter === 'policy' ? 'active' : ''}`} onClick={() => setCategoryFilter('policy')}>📋 Policy</button>
+        <button className={`filter-btn ${minScore >= 5 ? 'active' : ''}`} onClick={() => setMinScore(minScore >= 5 ? 0 : 5)}>⭐ Score ≥ 5</button>
       </div>
 
       {loading ? (
@@ -216,27 +235,11 @@ function ArticlesPage() {
           <div className="empty-state-text">No articles found. Check back after the next collection cycle.</div>
         </div>
       ) : (
-        <div className="article-count">Showing {articles.length} articles</div>
+        <>
+          <div className="article-count">Showing {articles.length} articles</div>
+          {articles.map(a => <ArticleCard key={a.id} article={a} />)}
+        </>
       )}
-      {articles.map(a => (
-        <div key={a.id} className="card">
-          <div className="card-header">
-            <a href={a.url} target="_blank" rel="noopener noreferrer" className="card-title">
-              {a.title}
-            </a>
-            <span className={`badge-score badge ${a.relevance_score >= 7 ? 'high' : a.relevance_score >= 4 ? 'medium' : 'low'}`}>
-              {a.relevance_score.toFixed(1)}
-            </span>
-          </div>
-          {a.summary && <div className="card-summary">{a.summary}</div>}
-          <div className="card-meta">
-            <span className="badge badge-region">{REGION_META[a.region]?.flag} {REGION_META[a.region]?.name || a.region}</span>
-            <span className={`badge badge-category ${a.category}`}>{CATEGORIES[a.category] || a.category}</span>
-            <span className="card-source">{a.source}</span>
-            <span className="card-date">{a.collected_at?.slice(0, 10)}</span>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -255,8 +258,8 @@ function ReportsPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => 
 
   return (
     <div>
-      <h1 style={{ marginBottom: 8 }}>📑 Monthly Reports</h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+      <h1 className="page-title">📑 Monthly Reports</h1>
+      <p className="page-subtitle">
         Monthly digests of EV charging market intelligence across all regions
       </p>
 
@@ -265,35 +268,36 @@ function ReportsPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => 
       ) : reports.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📑</div>
-          <div className="empty-state-text">No reports generated yet. Reports are created monthly.</div>
+          <div className="empty-state-text">No reports generated yet. Reports are created on the 1st of each month.</div>
         </div>
       ) : (
-        <div className="report-list">
-          {reports.map((report, i) => {
-            const prev = i < reports.length - 1 ? reports[i + 1] : null;
-            return (
-              <div key={report.month} className="card" style={{ cursor: 'pointer' }} onClick={() => onNavigate('report-detail', report.month)}>
-                <div className="report-list-header">
-                  <h2 className="report-list-month">{fmtMonth(report.month)}</h2>
-                  <div className="report-list-meta">
-                    <span className="badge badge-region">{report.article_count} articles</span>
-                    {prev && (
-                      <span className="badge badge-category trend">
-                        {report.article_count > prev.article_count ? '📈 +' : report.article_count < prev.article_count ? '📉 ' : '➡️ '}
-                        {Math.abs(report.article_count - prev.article_count)} vs {fmtMonth(prev.month)}
-                      </span>
-                    )}
-                  </div>
+        reports.map((report, i) => {
+          const prev = i < reports.length - 1 ? reports[i + 1] : null;
+          return (
+            <div key={report.month} className="card" style={{ cursor: 'pointer' }} onClick={() => onNavigate('report-detail', report.month)}>
+              <div className="report-list-header">
+                <h2 className="report-list-month">{fmtMonth(report.month)}</h2>
+                <div className="report-list-meta">
+                  <span className="badge badge-region">{report.article_count} articles</span>
+                  {prev && (
+                    <span className="badge" style={{
+                      background: report.article_count > prev.article_count ? 'var(--green-subtle)' : 'var(--amber-subtle)',
+                      color: report.article_count > prev.article_count ? 'var(--green)' : 'var(--amber)',
+                      border: '1px solid transparent',
+                    }}>
+                      {report.article_count > prev.article_count ? '📈' : '📉'} {Math.abs(report.article_count - prev.article_count)}
+                    </span>
+                  )}
                 </div>
-                <div className="report-excerpt">
-                  {report.content.slice(0, 300)}
-                  {report.content.length > 300 ? '...' : ''}
-                </div>
-                <div className="card-footer-link">Read full report →</div>
               </div>
-            );
-          })}
-        </div>
+              <div className="report-excerpt">
+                {report.content.slice(0, 280)}
+                {report.content.length > 280 ? '...' : ''}
+              </div>
+              <span className="card-footer-link">Read full report →</span>
+            </div>
+          );
+        })
       )}
     </div>
   );
@@ -313,20 +317,17 @@ function ReportDetailPage({ month, onBack }: { month: string; onBack: () => void
 
   return (
     <div>
-      <button className="btn btn-secondary" onClick={onBack} style={{ marginBottom: 24 }}>
-        ← Back to Reports
-      </button>
+      <button className="btn btn-secondary" onClick={onBack} style={{ marginBottom: 24 }}>← Back</button>
       {loading ? (
         <div className="loading"><div className="spinner" /> Loading...</div>
       ) : !report ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">📑</div>
-          <div className="empty-state-text">Report not found for {month}</div>
-        </div>
+        <div className="empty-state"><div className="empty-state-icon">📑</div><div className="empty-state-text">Report not found for {month}</div></div>
       ) : (
-        <div className="card">
-          <h1 style={{ marginBottom: 8, color: 'var(--accent-light)' }}>EV Pulse — {fmtMonth(month)}</h1>
-          <p style={{ color: 'var(--text-muted)', marginBottom: 24, fontSize: 14 }}>
+        <div className="card" style={{ padding: 32 }}>
+          <h1 style={{ marginBottom: 8, fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px', color: 'var(--accent-hover)' }}>
+            EV Pulse — {fmtMonth(month)}
+          </h1>
+          <p style={{ color: 'var(--text-muted)', marginBottom: 28, fontSize: 13 }}>
             {report.article_count} articles • Generated {report.created_at?.slice(0, 10)}
           </p>
           <div className="report-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(report.content) }} />
@@ -337,7 +338,7 @@ function ReportDetailPage({ month, onBack }: { month: string; onBack: () => void
 }
 
 /* ════════════════════════════════════════════════
-   Compare — Month-over-Month
+   Compare
    ════════════════════════════════════════════════ */
 
 function ComparePage() {
@@ -347,49 +348,41 @@ function ComparePage() {
   const [monthA, setMonthA] = useState('');
   const [monthB, setMonthB] = useState('');
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api.trends(24).then(res => {
       setTrends(res.trends);
       const months = [...new Set(res.trends.map(t => t.month))].sort().reverse();
       setAvailableMonths(months);
-      if (months.length >= 2) {
-        setMonthA(months[1]);
-        setMonthB(months[0]);
-      }
+      if (months.length >= 2) { setMonthA(months[1]); setMonthB(months[0]); }
     });
     api.timeline().then(res => setTimeline(res.timeline));
-    setLoading(false);
   }, []);
 
   useEffect(() => {
-    if (monthA && monthB) {
-      api.compare(monthA, monthB).then(setComparison);
-    }
+    if (monthA && monthB) api.compare(monthA, monthB).then(setComparison);
   }, [monthA, monthB]);
 
-  if (loading) return <div className="loading"><div className="spinner" /> Loading...</div>;
+  const allRegions = Object.keys(REGION_META);
 
   return (
     <div>
-      <h1 style={{ marginBottom: 8 }}>📊 Month-over-Month Comparison</h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
-        Track how EV charging news volume and focus shift across regions over time
+      <h1 className="page-title">📊 Month Comparison</h1>
+      <p className="page-subtitle">
+        Track EV charging news volume and focus shifts across regions over time
       </p>
 
-      {/* Month selector */}
       {availableMonths.length >= 2 && (
         <div className="compare-selectors">
           <div className="compare-selector">
-            <label>Earlier Month</label>
+            <label>Earlier</label>
             <select value={monthA} onChange={e => setMonthA(e.target.value)} className="select-styled">
               {availableMonths.map(m => <option key={m} value={m}>{fmtMonth(m)}</option>)}
             </select>
           </div>
           <div className="compare-arrow">→</div>
           <div className="compare-selector">
-            <label>Later Month</label>
+            <label>Later</label>
             <select value={monthB} onChange={e => setMonthB(e.target.value)} className="select-styled">
               {availableMonths.map(m => <option key={m} value={m}>{fmtMonth(m)}</option>)}
             </select>
@@ -397,51 +390,52 @@ function ComparePage() {
         </div>
       )}
 
-      {/* Comparison Results */}
       {comparison && (
         <>
           <div className="compare-header">
             <div className={`compare-change ${comparison.change_percent >= 0 ? 'up' : 'down'}`}>
-              {comparison.change_percent >= 0 ? '📈' : '📉'} {Math.abs(comparison.change_percent)}% change
+              {comparison.change_percent >= 0 ? '📈' : '📉'} {Math.abs(comparison.change_percent)}% overall change
             </div>
             <div className="compare-totals">
-              <span>{fmtMonth(comparison.month_a)}: <strong>{comparison.a.total}</strong> articles</span>
-              <span style={{ margin: '0 16px', color: 'var(--text-muted)' }}>→</span>
-              <span>{fmtMonth(comparison.month_b)}: <strong>{comparison.b.total}</strong> articles</span>
+              {fmtMonth(comparison.month_a)}: <strong>{comparison.a.total}</strong> articles
+              <span style={{ margin: '0 12px', opacity: 0.4 }}>→</span>
+              {fmtMonth(comparison.month_b)}: <strong>{comparison.b.total}</strong> articles
             </div>
           </div>
 
-          <h3 style={{ margin: '24px 0 12px' }}>By Region</h3>
+          <div className="section-heading">By Region</div>
           <div className="compare-grid">
-            {Object.keys(REGION_META).map(region => {
+            {allRegions.map(region => {
               const aData = comparison.a.regions[region];
               const bData = comparison.b.regions[region];
               const aCount = aData?.count || 0;
               const bCount = bData?.count || 0;
               const diff = bCount - aCount;
               const meta = REGION_META[region];
+              const maxCount = Math.max(aCount, bCount, 1);
               return (
                 <div key={region} className="compare-region-card">
                   <div className="compare-region-header">
                     <span>{meta.flag} {meta.name}</span>
-                    <span className={`badge ${diff > 0 ? 'badge-category trend' : diff < 0 ? 'badge-category policy' : ''}`}>
-                      {diff > 0 ? `+${diff}` : diff < 0 ? diff : '—'}
+                    <span className={`badge ${diff > 0 ? 'badge-category trend' : diff < 0 ? 'badge-category policy' : ''}`}
+                      style={diff === 0 ? { color: 'var(--text-muted)', border: '1px solid var(--border-default)', background: 'transparent' } : {}}>
+                      {diff > 0 ? `+${diff}` : diff < 0 ? String(diff) : '—'}
                     </span>
                   </div>
                   <div className="compare-bars">
                     <div className="compare-bar-group">
-                      <div className="compare-bar-label">{fmtMonth(comparison.month_a)}</div>
+                      <span className="compare-bar-label">{fmtMonth(comparison.month_a)}</span>
                       <div className="compare-bar-track">
-                        <div className="compare-bar compare-bar-a" style={{ width: `${Math.min(100, (aCount / Math.max(bCount, 1)) * 100)}%` }} />
+                        <div className="compare-bar compare-bar-a" style={{ width: `${(aCount / maxCount) * 100}%` }} />
                       </div>
-                      <div className="compare-bar-value">{aCount}</div>
+                      <span className="compare-bar-value">{aCount}</span>
                     </div>
                     <div className="compare-bar-group">
-                      <div className="compare-bar-label">{fmtMonth(comparison.month_b)}</div>
+                      <span className="compare-bar-label">{fmtMonth(comparison.month_b)}</span>
                       <div className="compare-bar-track">
-                        <div className="compare-bar compare-bar-b" style={{ width: `${Math.min(100, (bCount / Math.max(aCount, 1)) * 100)}%` }} />
+                        <div className="compare-bar compare-bar-b" style={{ width: `${(bCount / maxCount) * 100}%` }} />
                       </div>
-                      <div className="compare-bar-value">{bCount}</div>
+                      <span className="compare-bar-value">{bCount}</span>
                     </div>
                   </div>
                 </div>
@@ -453,26 +447,56 @@ function ComparePage() {
 
       {/* Timeline */}
       {timeline.length > 0 && (
-        <div className="card" style={{ marginTop: 32 }}>
-          <h3 style={{ marginBottom: 16 }}>Historical Timeline</h3>
+        <div className="timeline-section">
+          <div className="section-heading" style={{ marginBottom: 0 }}>📈 Historical Timeline</div>
           <div className="timeline">
             {timeline.map(entry => (
               <div key={entry.month} className="timeline-item">
-                <div className="timeline-month">{fmtMonth(entry.month as string)}</div>
+                <span className="timeline-month">{fmtMonth(entry.month as string)}</span>
                 <div className="timeline-bars">
-                  {Object.keys(REGION_META).map(region => {
+                  {allRegions.map(region => {
                     const count = (entry[region] as number) || 0;
                     if (count === 0) return null;
+                    const maxForMonth = Math.max(...allRegions.map(r => (entry[r] as number) || 0), 1);
                     return (
                       <div key={region} className="timeline-bar-item" title={`${REGION_META[region].name}: ${count}`}>
-                        <div className="timeline-bar-fill" style={{ height: `${Math.min(100, count * 10)}px`, background: regionColors(region) }} />
-                        <div className="timeline-bar-label">{count}</div>
+                        <div className="timeline-bar-fill" style={{
+                          height: `${Math.max(3, (count / maxForMonth) * 80)}px`,
+                          background: regionColors(region),
+                        }} />
+                        {count >= 3 && <span className="timeline-bar-label">{count}</span>}
                       </div>
                     );
                   })}
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Key insights */}
+      {trends.length > 0 && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header">
+            <span className="card-title" style={{ fontSize: 15, fontWeight: 600 }}>💡 Key Observations</span>
+          </div>
+          <div className="card-summary">
+            {/* Automatically computed insights */}
+            {(() => {
+              const topRegions = [...allRegions]
+                .map(r => ({ region: r, count: trends.filter(t => t.region === r).reduce((s, t) => s + t.article_count, 0) }))
+                .sort((a, b) => b.count - a.count);
+              return (
+                <ul style={{ paddingLeft: 20, listStyle: 'none' }}>
+                  <li style={{ marginBottom: 6 }}>• <strong>{REGION_META[topRegions[0]?.region]?.name}</strong> has the most coverage ({topRegions[0]?.count} articles tracked)</li>
+                  {comparison && (
+                    <li style={{ marginBottom: 6 }}>• {comparison.change_percent >= 0 ? '📈 Article volume increased by' : '📉 Article volume decreased by'} <strong>{Math.abs(comparison.change_percent)}%</strong> month over month</li>
+                  )}
+                  <li>• {trends.length} monthly data points recorded across {allRegions.length} regions</li>
+                </ul>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -497,19 +521,18 @@ function RegionsPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => 
 
   return (
     <div>
-      <h1 style={{ marginBottom: 8 }}>🌍 Regions</h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
-        Country-specific EV charging market intelligence
-      </p>
+      <h1 className="page-title">🌍 Regions</h1>
+      <p className="page-subtitle">Country-specific EV charging market intelligence</p>
+
       <div className="region-grid-full">
         {Object.entries(REGION_META).map(([key, meta]) => {
           const regionStat = stats?.by_region.find(r => r.region === key);
           return (
             <div key={key} className="region-card-full" onClick={() => onNavigate('region-detail', key)}>
-              <div className="region-card-flag-full">{meta.flag}</div>
+              <span className="region-card-flag-full">{meta.flag}</span>
               <div className="region-card-info">
                 <div className="region-card-name-full">{meta.name}</div>
-                <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+                <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>
                   {regionStat?.count || 0} articles tracked
                 </div>
               </div>
@@ -528,7 +551,7 @@ function RegionsPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => 
 
 function RegionDetailPage({ regionKey }: { regionKey: string }) {
   const [articles, setArticles] = useState<Article[]>([]);
-  const [trends, setTrends] = useState<Trend[]>([]);
+  const [regionTrends, setRegionTrends] = useState<Trend[]>([]);
   const [loading, setLoading] = useState(true);
   const meta = REGION_META[regionKey];
 
@@ -538,7 +561,7 @@ function RegionDetailPage({ regionKey }: { regionKey: string }) {
       api.trends(12),
     ]).then(([a, t]) => {
       setArticles(a.articles);
-      setTrends(t.trends.filter(tr => tr.region === regionKey));
+      setRegionTrends(t.trends.filter(tr => tr.region === regionKey));
     }).finally(() => setLoading(false));
   }, [regionKey]);
 
@@ -547,61 +570,52 @@ function RegionDetailPage({ regionKey }: { regionKey: string }) {
   return (
     <div>
       <div className="region-detail-header">
-        <span style={{ fontSize: 48 }}>{meta?.flag}</span>
+        <span style={{ fontSize: 44 }}>{meta?.flag}</span>
         <div>
-          <h1 style={{ margin: 0 }}>{meta?.name}</h1>
-          <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-            {articles.length} articles • {trends.length} months tracked
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px' }}>{meta?.name}</h1>
+          <p style={{ color: 'var(--text-tertiary)', margin: '4px 0 0', fontSize: 14 }}>
+            {articles.length} articles • {regionTrends.length} months tracked
           </p>
         </div>
       </div>
 
       {/* Trend Chart */}
-      {trends.length > 0 && (
+      {regionTrends.length > 0 && (
         <div className="card">
-          <h3 style={{ marginBottom: 16 }}>📈 Monthly Article Count</h3>
-          <div className="timeline">
-            {trends.sort((a, b) => a.month.localeCompare(b.month)).map(t => (
-              <div key={t.month} className="timeline-item">
-                <div className="timeline-month">{fmtMonth(t.month)}</div>
-                <div className="timeline-bars">
-                  <div className="timeline-bar-item">
-                    <div className="timeline-bar-fill" style={{ height: `${Math.min(100, t.article_count * 15)}px`, background: regionColors(regionKey) }} />
-                    <div className="timeline-bar-label">{t.article_count}</div>
+          <div className="section-heading" style={{ marginBottom: 16 }}>📈 Monthly Activity</div>
+          <div className="timeline" style={{ justifyContent: 'center' }}>
+            {regionTrends.sort((a, b) => a.month.localeCompare(b.month)).map(t => {
+              const max = Math.max(...regionTrends.map(x => x.article_count), 1);
+              return (
+                <div key={t.month} className="timeline-item">
+                  <span className="timeline-month">{fmtMonth(t.month)}</span>
+                  <div className="timeline-bars">
+                    <div className="timeline-bar-item">
+                      <div className="timeline-bar-fill" style={{
+                        height: `${Math.max(4, (t.article_count / max) * 80)}px`,
+                        background: `linear-gradient(180deg, ${regionColors(regionKey)}, ${regionColors(regionKey)}88)`,
+                      }} />
+                      <span className="timeline-bar-label">{t.article_count}</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6, textAlign: 'center' }}>
+                    {t.top_category}
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Avg relevance: {t.avg_relevance.toFixed(1)} • {t.top_category}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      <h3 style={{ margin: '24px 0 12px' }}>📰 Articles</h3>
+      <div className="section-heading" style={{ marginTop: 28 }}>📰 Articles</div>
       {articles.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📰</div>
           <div className="empty-state-text">No articles tracked for this region yet.</div>
         </div>
       ) : (
-        articles.map(a => (
-          <div key={a.id} className="card">
-            <div className="card-header">
-              <a href={a.url} target="_blank" rel="noopener noreferrer" className="card-title">{a.title}</a>
-              <span className={`badge-score badge ${a.relevance_score >= 7 ? 'high' : a.relevance_score >= 4 ? 'medium' : 'low'}`}>
-                {a.relevance_score.toFixed(1)}
-              </span>
-            </div>
-            {a.summary && <div className="card-summary">{a.summary}</div>}
-            <div className="card-meta">
-              <span className={`badge badge-category ${a.category}`}>{CATEGORIES[a.category] || a.category}</span>
-              <span className="card-source">{a.source}</span>
-              <span className="card-date">{a.collected_at?.slice(0, 10)}</span>
-            </div>
-          </div>
-        ))
+        articles.map(a => <ArticleCard key={a.id} article={a} />)
       )}
     </div>
   );
@@ -622,5 +636,6 @@ function renderMarkdown(md: string): string {
     .replace(/^- (.*$)/gm, '<li>$1</li>')
     .replace(/^(\d+)\. (.*$)/gm, '<li>$2</li>')
     .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br>');
+    .replace(/\n/g, '<br>')
+    .replace(/^---$/gm, '<hr>');
 }
