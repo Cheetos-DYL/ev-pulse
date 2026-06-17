@@ -250,3 +250,53 @@ def get_report_by_month(month: str):
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM reports WHERE month = ?", (month,)).fetchone()
         return dict(row) if row else None
+
+
+def seed_articles(articles: list[dict]):
+    """Bulk insert articles, skipping duplicates."""
+    count = 0
+    for a in articles:
+        # Convert string timestamps from JSON export
+        if isinstance(a.get('tags'), str):
+            import json as _json
+            try:
+                a['tags'] = _json.loads(a['tags'])
+            except Exception:
+                a['tags'] = []
+        result = insert_article(a)
+        if result:
+            count += 1
+    return count
+
+
+def seed_reports(reports: list[dict]):
+    """Bulk insert reports."""
+    count = 0
+    for r in reports:
+        try:
+            with get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO reports (month, content, article_count, created_at) VALUES (?, ?, ?, ?)",
+                    (r['month'], r['content'], r.get('article_count', 0), r.get('created_at'))
+                )
+            count += 1
+        except Exception:
+            pass
+    return count
+
+
+def seed_metrics(metrics: list[dict]):
+    """Bulk insert monthly metrics."""
+    init_trends_table()
+    count = 0
+    for m in metrics:
+        try:
+            with get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO monthly_metrics (month, region, article_count, avg_relevance, top_category) VALUES (?, ?, ?, ?, ?)",
+                    (m['month'], m['region'], m.get('article_count', 0), m.get('avg_relevance', 0), m.get('top_category', 'other'))
+                )
+            count += 1
+        except Exception:
+            pass
+    return count

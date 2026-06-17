@@ -15,7 +15,7 @@ from .db import (
     init_db, insert_article, get_articles, get_article_by_id,
     get_stats, get_reports, get_report_by_month,
     get_monthly_trends, get_month_comparison, get_all_region_timeline,
-    record_monthly_metrics
+    record_monthly_metrics, seed_articles, seed_reports, seed_metrics
 )
 from .scraper import collect_all_regions
 from .analyzer import batch_analyze
@@ -209,6 +209,32 @@ def newsletter_text(month: str):
     """Get plain text newsletter for a month."""
     text = get_newsletter_text(month)
     return {"month": month, "text": text}
+
+
+# ─── Seed (import local data) ──────────────────────────
+
+from pydantic import BaseModel
+
+class SeedData(BaseModel):
+    articles: list[dict] = []
+    reports: list[dict] = []
+    metrics: list[dict] = []
+
+@app.post("/api/seed")
+def seed_database(data: SeedData):
+    """Seed the database with exported articles, reports, and metrics."""
+    article_count = seed_articles(data.articles)
+    report_count = seed_reports(data.reports)
+    metric_count = seed_metrics(data.metrics)
+    return {
+        "status": "seeded",
+        "articles_inserted": article_count,
+        "reports_inserted": report_count,
+        "metrics_inserted": metric_count,
+        "total_articles": len(data.articles),
+        "total_reports": len(data.reports),
+        "total_metrics": len(data.metrics),
+    }
 
 
 # ─── Serve Frontend ───────────────────────────────────────
