@@ -140,6 +140,7 @@ Return ONLY valid JSON, no markdown."""
             max_tokens=300
         )
         if response_text is None:
+            logger.warning(f"LLM call returned None for article {article.get('id', '?')} — fallback")
             return _fallback_analysis(article)
         result = json.loads(response_text)
         article['relevance_score'] = result.get('relevance_score', 0)
