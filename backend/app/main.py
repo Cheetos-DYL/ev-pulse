@@ -31,6 +31,26 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     init_db()
     logger.info("EV Pulse database initialized")
+
+    # Auto-seed if database is empty (persists across Render deploys)
+    stats = get_stats()
+    if stats.get("total_articles", 0) == 0:
+        seed_path = os.path.join(os.path.dirname(__file__), "seed_data.json")
+        if os.path.exists(seed_path):
+            try:
+                with open(seed_path) as f:
+                    data = json.load(f)
+                a = seed_articles(data.get("articles", []))
+                r = seed_reports(data.get("reports", []))
+                m = seed_metrics(data.get("metrics", []))
+                logger.info(f"Auto-seeded: {a} articles, {r} reports, {m} metrics")
+            except Exception as e:
+                logger.error(f"Auto-seed failed: {e}")
+        else:
+            logger.info("No seed_data.json found, skipping auto-seed")
+    else:
+        logger.info(f"Database has {stats['total_articles']} articles, skipping auto-seed")
+
     yield
 
 
