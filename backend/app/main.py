@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from .db import (
     init_db, insert_article, get_articles, get_article_by_id,
@@ -188,6 +189,34 @@ def stats():
     return get_stats()
 
 
+# ─── Article Update ────────────────────────────────────────
+
+class ArticleUpdate(BaseModel):
+    title: str | None = None
+    summary: str | None = None
+
+@app.patch("/api/articles/{article_id}")
+def update_article(article_id: int, update: ArticleUpdate):
+    """Update an article's title and/or summary."""
+    existing = get_article_by_id(article_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Article not found")
+    with get_connection() as conn:
+        fields = []
+        params = []
+        if update.title is not None:
+            fields.append("title = ?")
+            params.append(update.title)
+        if update.summary is not None:
+            fields.append("summary = ?")
+            params.append(update.summary)
+        if not fields:
+            return {"status": "no_changes"}
+        params.append(article_id)
+        conn.execute(f"UPDATE articles SET {', '.join(fields)} WHERE id = ?", params)
+    return {"status": "updated", "id": article_id, "title": update.title, "summary": update.summary}
+
+
 # ─── Trends & Comparison ─────────────────────────
 
 @app.get("/api/trends")
@@ -233,8 +262,6 @@ def newsletter_text(month: str):
 
 
 # ─── Seed (import local data) ──────────────────────────
-
-from pydantic import BaseModel
 
 class SeedData(BaseModel):
     articles: list[dict] = []
