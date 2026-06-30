@@ -5,6 +5,22 @@ import './index.css';
 
 type Page = 'home' | 'articles' | 'reports' | 'compare' | 'regions' | 'region-detail' | 'report-detail';
 
+function useTheme() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const stored = localStorage.getItem('ev-pulse-theme');
+    if (stored === 'dark' || stored === 'light') return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('ev-pulse-theme', theme);
+  }, [theme]);
+
+  const toggle = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  return { theme, toggle };
+}
+
 const CATEGORIES: Record<string, string> = {
   service: 'Service',
   trend: 'Trend',
@@ -31,6 +47,7 @@ export default function App() {
   const [page, setPage] = useState<Page>('home');
   const [regionKey, setRegionKey] = useState<string>('');
   const [reportMonth, setReportMonth] = useState<string>('');
+  const { theme, toggle } = useTheme();
 
   const navigate = (p: Page, param?: string) => {
     setPage(p);
@@ -56,9 +73,19 @@ export default function App() {
             </button>
           ))}
         </div>
-        <button className="nav-get-started" onClick={() => navigate('home')}>
-          Get started →
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            className="theme-toggle"
+            onClick={toggle}
+            aria-label="Toggle dark mode"
+            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+          <button className="nav-get-started" onClick={() => navigate('home')}>
+            Get started →
+          </button>
+        </div>
       </nav>
 
       <div className="container">
