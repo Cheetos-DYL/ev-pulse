@@ -262,23 +262,31 @@ def seed_database(data: SeedData):
 def reanalyze_all(limit: int = 100):
     """Re-analyze existing articles with LLM to translate titles to English."""
     from .analyzer import llm_analyze_article
-    articles = get_articles(limit=limit)
-    translated = 0
-    for article in articles:
-        old_title = article.get("title", "")
-        old_summary = article.get("summary", "")
-        if not old_title:
-            continue
-        result = llm_analyze_article(article)
-        if result.get("title") and result["title"] != old_title:
-            # Update in DB
-            with get_connection() as conn:
-                conn.execute(
-                    "UPDATE articles SET title = ?, summary = ?, analyzed = ? WHERE id = ?",
-                    (result["title"], result.get("summary", old_summary), 1, article["id"])
-                )
-            translated += 1
-    return {"status": "completed", "translated": translated, "total": len(articles)}
+    try:
+        articles = get_articles(limit=limit)
+        translated = 0
+        errors = 0
+        for article in articles:
+            old_title = article.get("title", "")
+            old_summary = article.get("summary", "")
+            if not old_title:
+                continue
+            try:
+                result = llm_analyze_article(article)
+                if result.get("title") and result["title"] != old_title:
+                    with get_connection() as conn:
+                        conn.execute(
+                            "UPDATE articles SET title = ?, summary = ?, analyzed = ? WHERE id = ?",
+                            (result["title"], result.get("summary", old_summary), 1, article["id"])
+                        )
+                    translated += 1
+            except Exception as e:
+                logger.warning(f"Failed to re-analyze article {article.get('id')}: {e}")
+                errors += 1
+        return {"status": "completed", "translated": translated, "errors": errors, "total": len(articles)}
+    except Exception as e:
+        logger.error(f"Reanalyze endpoint failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── Serve Frontend ───────────────────────────────────────
