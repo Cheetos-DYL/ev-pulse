@@ -3,7 +3,6 @@
 import os
 import json
 import logging
-from openai import OpenAI
 
 from .sources import CATEGORIES
 
@@ -16,12 +15,40 @@ def get_client():
     global client
     if client is None:
         api_key = os.getenv('OPENAI_API_KEY') or os.getenv('LLM_API_KEY')
-        base_url = os.getenv('LLM_BASE_URL', 'https://api.openai.com/v1')
         if not api_key:
             logger.warning("No LLM API key found — using keyword-only scoring")
             return None
-        client = OpenAI(api_key=api_key, base_url=base_url)
+        # Use a simple dict as a pseudo-client — actual API calls use raw HTTP
+        client = {"api_key": api_key, "base_url": os.getenv('LLM_BASE_URL', 'https://api.openai.com/v1')}
     return client
+
+
+def llm_call(messages: list, model: str = None, temperature: float = 0.1, max_tokens: int = 300) -> str | None:
+    """Make an LLM API call via raw HTTP, bypassing library compatibility issues."""
+    c = get_client()
+    if c is None or isinstance(c, dict) is False:
+        return None
+    try:
+        import httpx
+        resp = httpx.post(
+            f"{c['base_url'].rstrip('/')}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {c['api_key']}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": model or os.getenv('LLM_MODEL', 'gpt-4o-mini'),
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+            timeout=30.0
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        logger.warning(f"LLM API call failed: {e}")
+        return None
 
 
 def keyword_score(article: dict) -> float:
@@ -71,7 +98,11 @@ def keyword_score(article: dict) -> float:
 
 def llm_analyze_article(article: dict) -> dict:
     """Use LLM to analyze and categorize an article."""
-    c = get_client()
+    try:
+        c = get_client()
+    except Exception as e:
+        logger.warning(f"LLM client creation failed: {e}")
+        return _fallback_analysis(article)
     if c is None:
         return _fallback_analysis(article)
 
@@ -103,13 +134,14 @@ Categories:
 Return ONLY valid JSON, no markdown."""
 
     try:
-        response = c.chat.completions.create(
-            model=os.getenv('LLM_MODEL', 'gpt-4o-mini'),
+        response_text = llm_call(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=300
         )
-        result = json.loads(response.choices[0].message.content)
+        if response_text is None:
+            return _fallback_analysis(article)
+        result = json.loads(response_text)
         article['relevance_score'] = result.get('relevance_score', 0)
         article['category'] = result.get('category', 'other')
         article['tags'] = result.get('tags', [])
