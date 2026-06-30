@@ -14,34 +14,43 @@ from .sources import SOURCES, CATEGORIES
 
 logger = logging.getLogger(__name__)
 
-# Multi-language EV keywords
-EV_KEYWORDS = {
-    "en": ["ev charging", "electric vehicle", "charging station", "charging point",
-           "ev policy", "ev incentive", "charging network", "fast charging",
-           "ev infrastructure", "charging tariff", "v2g", "ultra-fast charging"],
-    "ko": ["전기차", "충전", "ev 충전", "전기자동차", "충전소", "충전 인프라",
-           "급속 충전", "배터리 충전"],
-    "ja": ["EV充電", "電気自動車", "充電スタンド", "充電インフラ", "急速充電",
-           "充電ネットワーク", "電動車"],
-    "zh": ["電動車", "充電", "電動汽車", "充電站", "充電樁", "充電基礎設施",
-           "快速充電"],
-    "pt": ["carro elétrico", "veículo elétrico", "carregamento", "estação de carga",
-           "recarga", "carregador", "mobilidade elétrica", "ev"],
-    "es": ["carga", "vehículo eléctrico", "coche eléctrico", "estación de carga",
-           "punto de carga", "movilidad eléctrica", "ev"],
-    "ar": ["شحن", "سيارة كهربائية", "محطة شحن", "السيارات الكهربائية"],
-    "vi": ["xe điện", "sạc", "trạm sạc", "xe điện"],
-}
-
 
 def _is_ev_related(title: str, summary: str, language: str = "en") -> bool:
-    """Check if article is about EV/charging using language-appropriate keywords."""
+    """Strict EV relevance check — requires strong signal."""
     text = f"{title} {summary}".lower()
-    lang_code = language if language in EV_KEYWORDS else "en"
-    keywords = EV_KEYWORDS[lang_code]
-    # Also always check English keywords (many articles mix languages)
-    all_keywords = list(set(keywords + EV_KEYWORDS["en"]))
-    return any(kw.lower() in text for kw in all_keywords)
+    
+    # Strong EV keywords (high confidence)
+    strong_ev = {
+        "en": ["ev charging", "electric vehicle", "charging station", "charging network",
+               "fast charging", "ev infrastructure", "charging tariff", "charging point",
+               "v2g", "ev policy", "ev subsidy", "charging hub", "charging standard",
+               "ultra-fast", "supercharger", "ev adoption", "ev market"],
+        "ko": ["전기차 충전", "충전소", "전기자동차", "충전 인프라", "급속 충전",
+               "ev 충전", "전기차 보조금", "충전기 설치"],
+        "ja": ["EV充電", "充電スタンド", "急速充電", "充電インフラ", "充電ネットワーク",
+               "電気自動車充電", "スーパーチャージャー"],
+        "zh": ["電動車充電", "充電站", "充電樁", "充電基礎設施", "快速充電"],
+        "pt": ["carregamento elétrico", "estação de carga", "carro elétrico", "veículo elétrico",
+               "recarga elétrica", "mobilidade elétrica", "infraestrutura de carga"],
+        "es": ["estación de carga", "vehículo eléctrico", "carga eléctrica", "punto de recarga",
+               "movilidad eléctrica", "infraestructura de carga", "coche eléctrico"],
+        "ar": ["شحن السيارات", "محطة شحن", "سيارة كهربائية", "شحن كهربائي"],
+    }
+    
+    lang_code = language if language in strong_ev else "en"
+    keywords = strong_ev[lang_code]
+    
+    # Must match at least one strong keyword
+    for kw in keywords:
+        if kw.lower() in text:
+            return True
+    
+    # Also check English keywords for mixed-language articles
+    for kw in strong_ev["en"]:
+        if kw.lower() in text:
+            return True
+    
+    return False
 
 
 def _get_google_news_rss(query: str, language: str = "en", country: str = "US") -> list[dict]:
