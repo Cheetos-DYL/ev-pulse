@@ -15,7 +15,8 @@ from .db import (
     init_db, insert_article, get_articles, get_article_by_id,
     get_stats, get_reports, get_report_by_month,
     get_monthly_trends, get_month_comparison, get_all_region_timeline,
-    record_monthly_metrics, seed_articles, seed_reports, seed_metrics
+    record_monthly_metrics, seed_articles, seed_reports, seed_metrics,
+    get_connection
 )
 from .scraper import collect_all_regions
 from .analyzer import batch_analyze
@@ -255,6 +256,29 @@ def seed_database(data: SeedData):
         "total_reports": len(data.reports),
         "total_metrics": len(data.metrics),
     }
+
+
+@app.post("/api/reanalyze")
+def reanalyze_all(limit: int = 100):
+    """Re-analyze existing articles with LLM to translate titles to English."""
+    from .analyzer import llm_analyze_article
+    articles = get_articles(limit=limit)
+    translated = 0
+    for article in articles:
+        old_title = article.get("title", "")
+        old_summary = article.get("summary", "")
+        if not old_title:
+            continue
+        result = llm_analyze_article(article)
+        if result.get("title") and result["title"] != old_title:
+            # Update in DB
+            with get_connection() as conn:
+                conn.execute(
+                    "UPDATE articles SET title = ?, summary = ?, analyzed = ? WHERE id = ?",
+                    (result["title"], result.get("summary", old_summary), 1, article["id"])
+                )
+            translated += 1
+    return {"status": "completed", "translated": translated, "total": len(articles)}
 
 
 # ─── Serve Frontend ───────────────────────────────────────

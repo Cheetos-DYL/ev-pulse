@@ -113,6 +113,7 @@ Return ONLY valid JSON, no markdown."""
         article['relevance_score'] = result.get('relevance_score', 0)
         article['category'] = result.get('category', 'other')
         article['tags'] = result.get('tags', [])
+        article['title'] = result.get('translated_title', article.get('title', ''))
         article['summary'] = result.get('one_line_summary', article.get('summary', ''))
         article['analyzed'] = 1
         return article
