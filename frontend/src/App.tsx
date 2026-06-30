@@ -58,33 +58,34 @@ export default function App() {
   return (
     <div className="app">
       <nav className="top-nav">
-        <div className="logo" onClick={() => navigate('home')}>
-          <span className="logo-icon">⚡</span>
-          <span>EV Pulse</span>
-        </div>
-        <div className="nav-links">
-          {(['home', 'articles', 'reports', 'compare', 'regions'] as Page[]).map(p => (
+        <div className="nav-primary">
+          <div className="logo" onClick={() => navigate('home')}>
+            <span className="logo-icon">⚡</span>
+            <span className="logo-text">EV Pulse</span>
+          </div>
+          <div className="nav-links">
+            {(['home', 'articles', 'reports', 'compare', 'regions'] as Page[]).map(p => (
+              <button
+                key={p}
+                className={`nav-link ${page === p ? 'active' : ''}`}
+                onClick={() => navigate(p)}
+              >
+                {p === 'home' ? 'Home' : p === 'articles' ? 'Articles' : p === 'reports' ? 'Reports' : p === 'compare' ? 'Compare' : 'Regions'}
+              </button>
+            ))}
+          </div>
+          <div className="nav-right">
             <button
-              key={p}
-              className={`nav-link ${page === p ? 'active' : ''}`}
-              onClick={() => navigate(p)}
+              className="theme-toggle"
+              onClick={toggle}
+              aria-label="Toggle dark mode"
             >
-              {p === 'home' ? 'Home' : p === 'articles' ? 'Articles' : p === 'reports' ? 'Reports' : p === 'compare' ? 'Compare' : 'Regions'}
+              {theme === 'light' ? '🌙' : '☀️'}
             </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            className="theme-toggle"
-            onClick={toggle}
-            aria-label="Toggle dark mode"
-            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-          >
-            {theme === 'light' ? '🌙' : '☀️'}
-          </button>
-          <button className="nav-get-started" onClick={() => navigate('home')}>
-            Get started →
-          </button>
+            <button className="nav-cta" onClick={() => navigate('home')}>
+              Dashboard
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -110,8 +111,6 @@ export default function App() {
    Home
    ════════════════════════════════════════════════ */
 
-const STICKER_COLORS = ['#d6b6f6', '#ff64c8', '#dd5b00', '#2a9d99', '#1aae39', '#62aef0'];
-
 function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => void }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [latestArticles, setLatestArticles] = useState<Article[]>([]);
@@ -127,8 +126,9 @@ function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => voi
 
   return (
     <div>
-      {/* Hero — Notion "night" band */}
-      <div className="hero-band">
+      {/* Hero — Editorial feature */}
+      <div className="hero-feature">
+        <div className="hero-eyebrow">Market Intelligence</div>
         <h1 className="hero-title">EV Charging Intelligence</h1>
         <p className="hero-subtitle">
           Monitoring EV charging services, market trends, and policy across 9 emerging markets
@@ -173,8 +173,8 @@ function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => voi
 
       {/* Regions */}
       <h2 className="section-heading">Regions</h2>
-      <p style={{ color: 'var(--color-ink-muted)', fontSize: 16, marginBottom: 16, marginTop: -8 }}>
-        Click any region to explore charging intelligence
+      <p style={{ color: 'var(--color-ink-muted)', fontSize: 14, marginBottom: 16, marginTop: -8 }}>
+        Click any region to explore in-depth intelligence
       </p>
       <div className="region-grid">
         {Object.entries(REGION_META).map(([key, meta]) => {
@@ -191,8 +191,8 @@ function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => voi
 
       {/* Latest Articles */}
       <h2 className="section-heading">Latest Intelligence</h2>
-      {latestArticles.map((a, i) => (
-        <ArticleCard key={a.id} article={a} accentIndex={i} />
+      {latestArticles.map(a => (
+        <ArticleCard key={a.id} article={a} />
       ))}
     </div>
   );
@@ -202,17 +202,13 @@ function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => voi
    Article Card
    ════════════════════════════════════════════════ */
 
-function ArticleCard({ article, accentIndex }: { article: Article; accentIndex?: number }) {
+function ArticleCard({ article }: { article: Article }) {
   const scoreClass = article.relevance_score >= 7 ? 'high' : article.relevance_score >= 4 ? 'medium' : 'low';
 
   return (
     <div className="card">
       <div className="card-header">
-        <a href={article.url} target="_blank" rel="noopener noreferrer" className="card-title"
-           style={accentIndex !== undefined && accentIndex < 3 ? {
-             borderBottom: `2px solid ${STICKER_COLORS[accentIndex % STICKER_COLORS.length]}`,
-             paddingBottom: 2,
-           } : {}}>
+        <a href={article.url} target="_blank" rel="noopener noreferrer" className="card-title">
           {article.title}
         </a>
         <span className={`badge-score badge ${scoreClass}`}>
@@ -224,10 +220,13 @@ function ArticleCard({ article, accentIndex }: { article: Article; accentIndex?:
         <span className="badge badge-region">
           {REGION_META[article.region]?.flag} {REGION_META[article.region]?.name || article.region}
         </span>
+        <span className="card-meta-sep" />
         <span className={`badge badge-${article.category}`}>
           {CATEGORIES[article.category] || article.category}
         </span>
+        <span className="card-meta-sep" />
         <span className="card-source">{article.source}</span>
+        <span className="card-meta-sep" />
         <span className="card-date">{article.collected_at?.slice(0, 10)}</span>
       </div>
     </div>
