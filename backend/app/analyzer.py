@@ -29,32 +29,35 @@ def llm_call(messages: list, model: str = None, temperature: float = 0.1, max_to
     if c is None or isinstance(c, dict) is False:
         return None
     try:
-        import httpx
+        import urllib.request
+        import urllib.error
         url = f"{c['base_url'].rstrip('/')}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {c['api_key']}",
-            "Content-Type": "application/json"
-        }
-        payload = {
+        payload = json.dumps({
             "model": model or os.getenv('LLM_MODEL', 'gpt-4o-mini'),
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
-        }
-        logger.info(f"LLM call to {url} with model {payload['model']}")
-        resp = httpx.post(url, headers=headers, json=payload, timeout=30.0)
-        logger.info(f"LLM response status: {resp.status_code}")
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        }).encode()
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {c['api_key']}",
+                "Content-Type": "application/json"
+            },
+            method="POST"
+        )
+        resp = urllib.request.urlopen(req, timeout=30)
+        body = json.loads(resp.read())
+        return body["choices"][0]["message"]["content"]
     except Exception as e:
         error_detail = f"{type(e).__name__}: {str(e)[:200]}"
-        if hasattr(e, 'response') and e.response is not None:
+        if hasattr(e, 'read'):
             try:
-                error_detail += f" | body: {e.response.text[:300]}"
+                error_detail += f" | body: {e.read()[:300]}"
             except Exception:
                 pass
         logger.warning(f"LLM API call failed: {error_detail}")
-        # Store last error for diagnostics
         global _last_llm_error
         _last_llm_error = error_detail
         return None
