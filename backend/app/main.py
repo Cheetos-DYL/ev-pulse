@@ -265,7 +265,7 @@ def reanalyze_all(limit: int = 100):
     try:
         articles = get_articles(limit=limit)
         translated = 0
-        errors = 0
+        errors = []
         for article in articles:
             old_title = article.get("title", "")
             old_summary = article.get("summary", "")
@@ -281,8 +281,9 @@ def reanalyze_all(limit: int = 100):
                         )
                     translated += 1
             except Exception as e:
+                err_msg = f"Article {article.get('id')}: {type(e).__name__}: {e}"
                 logger.warning(f"Failed to re-analyze article {article.get('id')}: {e}")
-                errors += 1
+                errors.append(err_msg)
         return {"status": "completed", "translated": translated, "errors": errors, "total": len(articles)}
     except Exception as e:
         logger.error(f"Reanalyze endpoint failed: {e}", exc_info=True)
