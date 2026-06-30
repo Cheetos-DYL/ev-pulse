@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ev-pulse
+    name: Overseas-EV-Pulse
     env: python
     rootDir: backend
     buildCommand: |
