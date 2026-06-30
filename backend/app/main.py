@@ -261,10 +261,19 @@ def seed_database(data: SeedData):
 @app.post("/api/reanalyze")
 def reanalyze_all(limit: int = 100):
     """Re-analyze existing articles with LLM to translate titles to English."""
-    from .analyzer import llm_analyze_article, get_client
+    from .analyzer import llm_analyze_article, get_client, llm_call
     # Debug: check if client/key is available
     c = get_client()
     llm_status = "client_ready" if c else "no_client"
+
+    # Test the LLM directly
+    test_result = llm_call(
+        messages=[{"role": "user", "content": "Say 'TEST_OK' and nothing else."}],
+        temperature=0,
+        max_tokens=20
+    )
+    llm_test = test_result if test_result else "FAILED"
+
     try:
         articles = get_articles(limit=limit)
         translated = 0
@@ -288,7 +297,7 @@ def reanalyze_all(limit: int = 100):
                 err_msg = f"Article {article.get('id')}: {type(e).__name__}: {e}"
                 logger.warning(f"Failed to re-analyze article {article.get('id')}: {e}")
                 errors.append(err_msg)
-        return {"status": "completed", "translated": translated, "errors": errors, "total": len(articles), "llm_status": llm_status}
+        return {"status": "completed", "translated": translated, "errors": errors, "total": len(articles), "llm_status": llm_status, "llm_test": llm_test}
     except Exception as e:
         logger.error(f"Reanalyze endpoint failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
