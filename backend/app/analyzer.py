@@ -14,7 +14,7 @@ client = None
 def get_client():
     global client
     if client is None:
-        api_key = os.getenv('OPENAI_API_KEY') or os.getenv('LLM_API_KEY')
+        api_key = os.getenv('OPENAI_API_KEY') or os.getenv('LLM_API_KEY') or os.getenv('DEEPSEEK_API_KEY')
         if not api_key:
             logger.warning("No LLM API key found — using keyword-only scoring")
             return None
