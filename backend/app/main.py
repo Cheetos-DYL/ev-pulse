@@ -261,7 +261,7 @@ def seed_database(data: SeedData):
 @app.post("/api/reanalyze")
 def reanalyze_all(limit: int = 100):
     """Re-analyze existing articles with LLM to translate titles to English."""
-    from .analyzer import llm_analyze_article, get_client, llm_call
+    from .analyzer import llm_analyze_article, get_client, llm_call, get_last_llm_error
     # Debug: check if client/key is available
     c = get_client()
     llm_status = "client_ready" if c else "no_client"
@@ -272,7 +272,7 @@ def reanalyze_all(limit: int = 100):
         temperature=0,
         max_tokens=20
     )
-    llm_test = test_result if test_result else "FAILED"
+    llm_test = test_result if test_result else get_last_llm_error()
 
     try:
         articles = get_articles(limit=limit)
