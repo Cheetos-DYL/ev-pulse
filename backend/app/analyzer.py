@@ -80,12 +80,19 @@ def llm_analyze_article(article: dict) -> dict:
 Title: {article.get('title', '')}
 Summary: {article.get('summary', '')}
 Region: {article.get('region', '')}
+Language: {article.get('language', 'en')}
 
 Return JSON with:
 - relevance_score: 0-10 (10 = highly relevant to EV charging services/trends/policy)
 - category: one of "service", "trend", "policy", "other"
 - tags: array of 2-5 relevant tags
 - one_line_summary: English one-line summary
+- translated_title: if the original title is not in English, provide an English translation; otherwise same as title
+
+If the article is in a non-English language (Korean, Japanese, Chinese, Portuguese, Spanish, Arabic, etc.):
+1. First detect the language
+2. Translate the title and key content to English
+3. Then analyze relevance as usual
 
 Categories:
 - service: charging networks, operators, pricing, new services
