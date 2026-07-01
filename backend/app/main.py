@@ -365,7 +365,22 @@ def reanalyze_all(limit: int = 100, offset: int = 0):
             if not old_title or article.get("translated_title"):
                 continue
             # Skip articles already in English (no non-Latin chars)
-            if not any(ord(c) > 0x2E80 for c in old_title):
+            has_non_latin = any(ord(c) > 0x2E80 for c in old_title)
+            if not has_non_latin and article.get("keywords"):
+                continue  # Already has keywords, skip
+            if not has_non_latin:
+                # English article missing keywords — extract only
+                try:
+                    result = llm_analyze_article(article)
+                    if result.get("keywords"):
+                        with get_connection() as conn:
+                            conn.execute(
+                                "UPDATE articles SET keywords = ? WHERE id = ?",
+                                (json.dumps(result["keywords"]), article["id"])
+                            )
+                    # Still count as processed
+                except Exception:
+                    pass
                 continue
             try:
                 result = llm_analyze_article(article)
