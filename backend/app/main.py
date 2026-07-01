@@ -312,12 +312,12 @@ def reanalyze_all(limit: int = 100):
                 continue
             try:
                 result = llm_analyze_article(article)
-                title_changed = result.get("title") and result["title"] != old_title
-                if title_changed:
+                if result.get("translated_title") and result["translated_title"] != old_title:
                     with get_connection() as conn:
                         conn.execute(
-                            "UPDATE articles SET title = ?, summary = ?, analyzed = ? WHERE id = ?",
-                            (result["title"], result.get("summary", old_summary), 1, article["id"])
+                            "UPDATE articles SET translated_title = ?, summary = ?, keywords = ?, analyzed = ? WHERE id = ?",
+                            (result["translated_title"], result.get("summary", old_summary),
+                             json.dumps(result.get("keywords", [])), 1, article["id"])
                         )
                     translated += 1
             except Exception as e:

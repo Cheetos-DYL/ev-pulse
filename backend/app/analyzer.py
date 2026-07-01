@@ -139,11 +139,13 @@ Return JSON with:
 - tags: array of 2-5 relevant tags
 - one_line_summary: English one-line summary
 - translated_title: if the original title is not in English, provide an English translation; otherwise same as title
+- keywords: array of 3-7 key terms/entities extracted from the article — these will be used for a wiki-style knowledge graph, so use short, canonical names (e.g. ["초급속 충전", "현대차", "PnC", "충전 인프라"])
 
 If the article is in a non-English language (Korean, Japanese, Chinese, Portuguese, Spanish, Arabic, etc.):
 1. First detect the language
 2. Translate the title and key content to English
 3. Then analyze relevance as usual
+4. Extract keywords from the ORIGINAL language text, keep them in their original form for the wiki graph
 
 Categories:
 - service: charging networks, operators, pricing, new services
@@ -166,8 +168,9 @@ Return ONLY valid JSON, no markdown."""
         article['relevance_score'] = result.get('relevance_score', 0)
         article['category'] = result.get('category', 'other')
         article['tags'] = result.get('tags', [])
-        article['title'] = result.get('translated_title', article.get('title', ''))
+        article['translated_title'] = result.get('translated_title', '')
         article['summary'] = result.get('one_line_summary', article.get('summary', ''))
+        article['keywords'] = result.get('keywords', [])
         article['analyzed'] = 1
         return article
     except Exception as e:

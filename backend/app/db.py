@@ -18,6 +18,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS articles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
+                translated_title TEXT,
                 url TEXT UNIQUE NOT NULL,
                 source TEXT NOT NULL,
                 region TEXT NOT NULL,
@@ -47,6 +48,17 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_articles_collected ON articles(collected_at DESC);
         """)
 
+    # Migrate existing DBs: add columns that may not exist yet
+    with get_connection() as conn:
+        for col in [
+            ("translated_title", "TEXT"),
+            ("keywords", "TEXT DEFAULT '[]'"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE articles ADD COLUMN {col[0]} {col[1]}")
+            except Exception:
+                pass
+
 
 @contextmanager
 def get_connection():
@@ -70,16 +82,19 @@ def insert_article(article: dict) -> int | None:
         try:
             cursor = conn.execute(
                 """INSERT INTO articles 
-                   (title, url, source, region, country, language, summary, content,
-                    relevance_score, category, tags, published_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (title, translated_title, url, source, region, country, language, summary, content,
+                    relevance_score, category, tags, keywords, published_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    article['title'], article['url'], article['source'],
+                    article['title'], article.get('translated_title'),
+                    article['url'], article['source'],
                     article['region'], article.get('country'),
                     article.get('language', 'en'), article.get('summary'),
                     article.get('content'), article.get('relevance_score', 0),
                     article.get('category', 'other'),
-                    str(article.get('tags', [])), article.get('published_at')
+                    str(article.get('tags', [])),
+                    str(article.get('keywords', [])),
+                    article.get('published_at')
                 )
             )
             return cursor.lastrowid
