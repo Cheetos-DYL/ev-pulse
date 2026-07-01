@@ -94,8 +94,8 @@ def insert_article(article: dict) -> int | None:
                     article.get('language', 'en'), article.get('summary'),
                     article.get('content'), article.get('relevance_score', 0),
                     article.get('category', 'other'),
-                    str(article.get('tags', [])),
-                    str(article.get('keywords', [])),
+                    json.dumps(article.get('tags', [])),
+                    json.dumps(article.get('keywords', [])),
                     article.get('why_it_matters', ''),
                     article.get('published_at')
                 )
@@ -340,12 +340,21 @@ def seed_articles(articles: list[dict]):
     count = 0
     for a in articles:
         # Convert string timestamps from JSON export
-        if isinstance(a.get('tags'), str):
-            import json as _json
-            try:
-                a['tags'] = _json.loads(a['tags'])
-            except Exception:
-                a['tags'] = []
+        for field in ('tags', 'keywords'):
+            val = a.get(field)
+            if isinstance(val, str):
+                # Handle both JSON format and old Python-repr format
+                if val.startswith('[') and not val.startswith('[['):
+                    try:
+                        import ast
+                        a[field] = ast.literal_eval(val)
+                    except Exception:
+                        try:
+                            a[field] = json.loads(val.replace("'", '"'))
+                        except Exception:
+                            a[field] = []
+                elif isinstance(val, list):
+                    pass  # Already a list
         result = insert_article(a)
         if result:
             count += 1
