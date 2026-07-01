@@ -2,6 +2,7 @@
 
 import sqlite3
 import os
+import json
 from contextlib import contextmanager
 
 DB_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'ev_pulse.db')
@@ -114,7 +115,18 @@ def get_articles(region=None, category=None, min_relevance=0, limit=50, offset=0
             params.append(category)
         query += " ORDER BY collected_at DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
-        return [dict(row) for row in conn.execute(query, params).fetchall()]
+        articles = []
+        for row in conn.execute(query, params).fetchall():
+            d = dict(row)
+            # Parse JSON string fields
+            for field in ['tags', 'keywords']:
+                if isinstance(d.get(field), str):
+                    try:
+                        d[field] = json.loads(d[field])
+                    except Exception:
+                        d[field] = []
+            articles.append(d)
+        return articles
 
 
 def get_article_by_id(article_id: int):
