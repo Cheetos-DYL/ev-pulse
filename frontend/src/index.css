@@ -430,9 +430,12 @@ a.card-title:hover { color: var(--color-primary); text-decoration: none; }
   color: var(--color-primary);
 }
 
-.badge-service { color: var(--color-primary); }
-.badge-trend { color: var(--color-accent-teal, #1a8a84); }
-.badge-policy { color: var(--color-accent-orange, #b85a00); }
+.badge-government_policy { color: var(--color-accent-orange, #b85a00); }
+.badge-ma_partnership { color: var(--color-accent-purple, #7b4f9e); }
+.badge-charger_install { color: var(--color-primary); }
+.badge-charging_standards { color: var(--color-accent-teal, #1a8a84); }
+.badge-grid_pricing { color: var(--color-accent-amber, #c97800); }
+.badge-ev_sales_stats { color: var(--color-accent-green, #2a8a3a); }
 
 .badge-score {
   font-weight: 600;
@@ -984,13 +987,99 @@ a.card-title:hover { color: var(--color-primary); text-decoration: none; }
    Knowledge Graph
    ═══════════════════════════════════════════════ */
 
+.page-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-lg);
+  gap: var(--space-md);
+}
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-md);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+.btn-outline:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(0,102,204,0.04);
+}
+
 .graph-header {
+  margin-bottom: var(--space-lg);
+}
+
+.graph-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
   gap: var(--space-md);
-  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+}
+
+.graph-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.graph-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.graph-toggle input[type="checkbox"] {
+  accent-color: var(--color-primary);
+}
+.graph-toggle input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.graph-relevance-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--space-sm);
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+.graph-relevance-filter label { white-space: nowrap; }
+.graph-relevance-filter input[type="range"] {
+  width: 120px;
+  accent-color: var(--color-primary);
+}
+.graph-relevance-filter .filter-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 120px;
+  font-size: 10px;
+  color: var(--color-ink-faint);
+}
+
+.graph-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+  font-size: 13px;
+  color: var(--color-ink-muted);
 }
 
 .graph-legend {

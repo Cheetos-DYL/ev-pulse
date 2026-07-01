@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { api, REGION_META } from './api';
 import type { Article, Stats, Report, Trend, ComparisonResult, TimelineEntry } from './api';
 import * as d3 from 'd3';
@@ -23,9 +23,12 @@ function useTheme() {
 }
 
 const CATEGORIES: Record<string, string> = {
-  service: 'Service',
-  trend: 'Trend',
-  policy: 'Policy',
+  government_policy: 'Policy',
+  ma_partnership: 'M&A',
+  charger_install: 'Install',
+  charging_standards: 'Standards',
+  grid_pricing: 'Grid',
+  ev_sales_stats: 'Stats',
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -258,10 +261,25 @@ function ArticlesPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const exportCsv = () => {
+    const params = new URLSearchParams();
+    if (regionFilter) params.set('region', regionFilter);
+    if (categoryFilter) params.set('category', categoryFilter);
+    if (minScore) params.set('min_relevance', String(minScore));
+    window.open(`/api/articles/csv?${params}`, '_blank');
+  };
+
   return (
     <div>
-      <h1 className="page-title">Article Archive</h1>
-      <p className="page-subtitle">Browse EV charging news from all regions</p>
+      <div className="page-header-row">
+        <div>
+          <h1 className="page-title">Article Archive</h1>
+          <p className="page-subtitle">Browse EV charging news from all regions</p>
+        </div>
+        <button className="btn btn-outline" onClick={exportCsv}>
+          ⬇ CSV Export
+        </button>
+      </div>
 
       <div className="filters">
         <button className={`filter-btn ${!regionFilter ? 'active' : ''}`} onClick={() => setRegionFilter('')}>All</button>
@@ -578,18 +596,55 @@ function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => vo
   const [loading, setLoading] = useState(true);
   const [hovered, setHovered] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [localMode, setLocalMode] = useState(false);
+  const [minRelevance, setMinRelevance] = useState(3);
+  const [showCategories, setShowCategories] = useState(true);
+  const [showBacklinks, setShowBacklinks] = useState(true);
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetch('/api/graph?limit=200').then(r => r.json()).then(data => {
-      setGraphData(data);
-      setLoading(false);
-    });
+  const loadGraph = useCallback((relevance: number) => {
+    setLoading(true);
+    setSelected(null);
+    setLocalMode(false);
+    fetch(`/api/graph?limit=200&min_relevance=${relevance}`)
+      .then(r => r.json())
+      .then(data => { setGraphData(data); setLoading(false); });
   }, []);
 
+  useEffect(() => { loadGraph(minRelevance); }, [minRelevance, loadGraph]);
+
+  // Build local graph: show selected node + its immediate neighbors + their edges
+  const localGraph = useMemo(() => {
+    if (!graphData || !selected || !localMode) return null;
+    const neighborIds = new Set<string>([selected]);
+    graphData.edges.forEach((e: any) => {
+      const sid = typeof e.source === 'object' ? e.source.id : e.source;
+      const tid = typeof e.target === 'object' ? e.target.id : e.target;
+      if (sid === selected) neighborIds.add(tid);
+      if (tid === selected) neighborIds.add(sid);
+    });
+    // Second hop for backlinks
+    graphData.edges.forEach((e: any) => {
+      const sid = typeof e.source === 'object' ? e.source.id : e.source;
+      const tid = typeof e.target === 'object' ? e.target.id : e.target;
+      if (neighborIds.has(sid) && neighborIds.size < 40) neighborIds.add(tid);
+      if (neighborIds.has(tid) && neighborIds.size < 40) neighborIds.add(sid);
+    });
+    const filteredNodes = graphData.nodes.filter((n: any) => neighborIds.has(n.id));
+    const filteredEdges = graphData.edges.filter((e: any) => {
+      const sid = typeof e.source === 'object' ? e.source.id : e.source;
+      const tid = typeof e.target === 'object' ? e.target.id : e.target;
+      return neighborIds.has(sid) && neighborIds.has(tid);
+    });
+    return { nodes: filteredNodes, edges: filteredEdges };
+  }, [graphData, selected, localMode]);
+
+  // Merge local graph data for rendering
+  const renderData = localGraph || graphData;
+
   useEffect(() => {
-    if (!graphData || !svgRef.current || !containerRef.current) return;
+    if (!renderData || !svgRef.current || !containerRef.current) return;
 
     const width = containerRef.current.clientWidth;
     const height = Math.max(500, window.innerHeight - 250);
@@ -601,26 +656,50 @@ function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => vo
       article: '#60a5fa',
       keyword: '#34d399',
       region: '#fbbf24',
+      category: '#a78bfa',
     };
 
     // Build simulation
-    const nodes = graphData.nodes.map(n => ({ ...n }));
-    const edges = graphData.edges.map(e => ({ ...e }));
-    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+    const nodes = renderData.nodes.map((n: any) => ({ ...n }));
+    const edges = renderData.edges.map((e: any) => ({ ...e }));
 
     const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(edges).id((d: any) => d.id).distance(80))
-      .force('charge', d3.forceManyBody().strength(-200))
+      .force('link', d3.forceLink(edges).id((d: any) => d.id).distance((d: any) => d.type === 'article' && edges.some((e: any) => {
+        const sid = typeof e.source === 'object' ? e.source.id : e.source;
+        const tid = typeof e.target === 'object' ? e.target.id : e.target;
+        return sid.startsWith('article:') && tid.startsWith('article:') &&
+          (sid === d.id || tid === d.id);
+      }) ? 120 : 70))
+      .force('charge', d3.forceManyBody().strength((d: any) => d.type === 'article' ? -250 : -150))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(20));
+      .force('collision', d3.forceCollide().radius((d: any) => d.type === 'region' ? 25 : d.type === 'category' ? 20 : 12));
 
     const link = svg.append('g')
       .selectAll('line')
       .data(edges)
       .join('line')
-      .attr('stroke', '#555')
-      .attr('stroke-width', 0.8)
-      .attr('stroke-opacity', 0.4);
+      .attr('stroke', (d: any) => {
+        const sid = typeof d.source === 'object' ? d.source.id : d.source;
+        const tid = typeof d.target === 'object' ? d.target.id : d.target;
+        // Backlinks (article↔article) are purple
+        if (sid.startsWith('article:') && tid.startsWith('article:')) return '#a78bfa';
+        return '#555';
+      })
+      .attr('stroke-width', (d: any) => {
+        const sid = typeof d.source === 'object' ? d.source.id : d.source;
+        const tid = typeof d.target === 'object' ? d.target.id : d.target;
+        return (sid.startsWith('article:') && tid.startsWith('article:')) ? 1.5 : 0.8;
+      })
+      .attr('stroke-opacity', (d: any) => {
+        const sid = typeof d.source === 'object' ? d.source.id : d.source;
+        const tid = typeof d.target === 'object' ? d.target.id : d.target;
+        return (sid.startsWith('article:') && tid.startsWith('article:')) ? 0.6 : 0.3;
+      })
+      .attr('stroke-dasharray', (d: any) => {
+        const sid = typeof d.source === 'object' ? d.source.id : d.source;
+        const tid = typeof d.target === 'object' ? d.target.id : d.target;
+        return (sid.startsWith('category:') || tid.startsWith('category:')) ? '4,3' : 'none';
+      });
 
     const node = svg.append('g')
       .selectAll('g')
@@ -630,12 +709,7 @@ function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => vo
       .on('mouseover', (_, d) => setHovered(d.id))
       .on('mouseout', () => setHovered(null))
       .on('click', (_, d) => {
-        if (d.type === 'article') {
-          setSelected(d.id === selected ? null : d.id);
-        } else {
-          // Toggle keyword/region selection to highlight connected articles
-          setSelected(d.id === selected ? null : d.id);
-        }
+        setSelected(d.id === selected ? null : d.id);
       })
       .call(d3.drag<any, any>()
         .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
@@ -643,27 +717,28 @@ function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => vo
         .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
       );
 
-    // Circles
+    // Circles with size based on type
     node.append('circle')
-      .attr('r', d => d.type === 'article' ? 6 : d.type === 'region' ? 10 : 5)
+      .attr('r', d => d.type === 'region' ? 12 : d.type === 'category' ? 9 : d.type === 'article' ? 7 : 5)
       .attr('fill', d => colorMap[d.type] || '#888')
       .attr('stroke', '#fff')
-      .attr('stroke-width', 1.5);
+      .attr('stroke-width', d => d.id === selected ? 3 : 1.5);
 
-    // Labels (show on hover or for selected nodes)
+    // Labels
     node.append('text')
       .text(d => {
         const label = d.label || '';
-        return label.length > 25 ? label.slice(0, 24) + '…' : label;
+        return label.length > 22 ? label.slice(0, 21) + '…' : label;
       })
-      .attr('x', d => d.type === 'article' ? 10 : 12)
+      .attr('x', d => d.type === 'article' ? 10 : d.type === 'category' ? 12 : 14)
       .attr('y', 4)
       .attr('font-size', '11px')
       .attr('fill', '#ccc')
-      .attr('opacity', d => (d.id === hovered || d.id === selected) ? 1 : 0)
-      .style('pointer-events', 'none');
+      .attr('opacity', d => (d.id === hovered || d.id === selected || localMode) ? 1 : 0)
+      .style('pointer-events', 'none')
+      .style('text-shadow', '0 1px 3px rgba(0,0,0,0.8)');
 
-    // Highlight connected nodes when something is selected
+    // Highlight connected nodes
     const tick = () => {
       link
         .attr('x1', (d: any) => d.source.x)
@@ -673,11 +748,10 @@ function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => vo
 
       node.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
 
-      // Opacity based on selection
-      if (selected) {
+      if (selected && !localMode) {
         const connectedIds = new Set<string>();
         connectedIds.add(selected);
-        edges.forEach(e => {
+        edges.forEach((e: any) => {
           const sid = typeof e.source === 'object' ? e.source.id : e.source;
           const tid = typeof e.target === 'object' ? e.target.id : e.target;
           if (sid === selected) connectedIds.add(tid);
@@ -687,46 +761,100 @@ function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => vo
         link.attr('stroke-opacity', (e: any) => {
           const sid = typeof e.source === 'object' ? e.source.id : e.source;
           const tid = typeof e.target === 'object' ? e.target.id : e.target;
-          return (sid === selected || tid === selected) ? 0.8 : 0.05;
+          const isBacklink = sid.startsWith('article:') && tid.startsWith('article:');
+          const isConnected = (sid === selected || tid === selected);
+          return isConnected ? (isBacklink ? 0.8 : 0.6) : 0.03;
         });
 
-        node.select('circle').attr('opacity', (d: any) => connectedIds.has(d.id) ? 1 : 0.15);
+        node.select('circle').attr('opacity', (d: any) => connectedIds.has(d.id) ? 1 : 0.12);
         node.select('text').attr('opacity', (d: any) => connectedIds.has(d.id) ? 1 : 0);
-      } else {
-        link.attr('stroke-opacity', hovered ? (e: any) => {
+      } else if (hovered && !selected) {
+        link.attr('stroke-opacity', (e: any) => {
           const sid = typeof e.source === 'object' ? e.source.id : e.source;
           const tid = typeof e.target === 'object' ? e.target.id : e.target;
-          return (sid === hovered || tid === hovered) ? 0.8 : 0.1;
-        } : 0.3);
-        node.select('circle').attr('opacity', hovered ? (d: any) => d.id === hovered ? 1 : 0.3 : 1);
+          return (sid === hovered || tid === hovered) ? 0.8 : 0.05;
+        });
+        node.select('circle').attr('opacity', (d: any) => d.id === hovered ? 1 : 0.2);
+        node.select('text').attr('opacity', (d: any) => d.id === hovered ? 1 : 0);
+      } else if (!localMode) {
+        link.attr('stroke-opacity', 0.3);
+        node.select('circle').attr('opacity', 1);
       }
     };
 
     simulation.on('tick', tick);
 
     // Zoom
-    svg.call(d3.zoom<any, any>()
+    const zoomBehavior = d3.zoom<any, any>()
       .extent([[0, 0], [width, height]])
       .scaleExtent([0.3, 4])
-      .on('zoom', (e) => svg.selectAll('g').attr('transform', e.transform))
-    );
+      .on('zoom', (e) => {
+        svg.selectAll('g.nodes-group, g.links-group').attr('transform', e.transform);
+      });
+    svg.call(zoomBehavior);
+
+    // Group zoomable elements
+    svg.selectAll('g').each(function() {
+      const g = d3.select(this);
+      const child = g.select('line');
+      if (child.size() > 0) g.attr('class', 'links-group');
+      const grandchild = g.select('circle');
+      if (grandchild.size() > 0) g.attr('class', 'nodes-group');
+    });
 
     // Cleanup
     return () => { simulation.stop(); };
-  }, [graphData, hovered, selected]);
+  }, [renderData, hovered, selected, localMode]);
 
-  // Legend info
   const stats = graphData?.stats;
+  const connectedArticles = selected ? graphData?.edges.filter((e: any) => {
+    const sid = typeof e.source === 'object' ? e.source.id : e.source;
+    const tid = typeof e.target === 'object' ? e.target.id : e.target;
+    return sid === selected || tid === selected;
+  }).length : 0;
 
   return (
     <div className="page">
       <div className="graph-header">
-        <h2 className="page-title">Knowledge Graph</h2>
+        <div className="graph-title-row">
+          <h2 className="page-title">Knowledge Graph</h2>
+          <div className="graph-controls">
+            <label className="graph-toggle" title="Show only selected node and its connections">
+              <input type="checkbox" checked={localMode} onChange={() => setLocalMode(!localMode)} disabled={!selected} />
+              Local
+            </label>
+            <label className="graph-toggle" title="Show/hide category nodes">
+              <input type="checkbox" checked={showCategories} />
+              Cats
+            </label>
+            <label className="graph-toggle" title="Show/hide article backlinks">
+              <input type="checkbox" checked={showBacklinks} />
+              Links
+            </label>
+          </div>
+        </div>
         <div className="graph-legend">
           <span><span className="dot" style={{ background: '#60a5fa' }} /> Article</span>
           <span><span className="dot" style={{ background: '#34d399' }} /> Keyword</span>
           <span><span className="dot" style={{ background: '#fbbf24' }} /> Region</span>
-          {stats && <span className="stats">{stats.articles} articles · {stats.keywords} keywords · {stats.regions} regions</span>}
+          <span><span className="dot" style={{ background: '#a78bfa' }} /> Category</span>
+          {stats && (
+            <span className="stats">
+              {stats.articles} articles · {stats.keywords} keywords · {stats.regions} regions · {stats.categories} categories
+              {stats.backlinks > 0 && ` · ${stats.backlinks} backlinks`}
+            </span>
+          )}
+        </div>
+        <div className="graph-relevance-filter">
+          <label>Min relevance: <strong>{minRelevance}</strong></label>
+          <input
+            type="range" min="0" max="9" step="1"
+            value={minRelevance}
+            onChange={e => setMinRelevance(Number(e.target.value))}
+          />
+          <span className="filter-labels">
+            <span>0</span><span>9</span>
+          </span>
         </div>
       </div>
       {loading ? (
@@ -736,11 +864,14 @@ function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => vo
           <svg ref={svgRef} width="100%" height={Math.max(500, typeof window !== 'undefined' ? window.innerHeight - 250 : 500)} />
           {selected && (
             <div className="graph-detail">
-              <button className="close-btn" onClick={() => setSelected(null)}>✕</button>
-              {graphData?.nodes.find(n => n.id === selected)?.type === 'article' ? (
-                <ArticleNodeDetail nodeId={selected} graphData={graphData!} onNavigate={onNavigate} />
+              <div className="graph-detail-header">
+                <strong>Connected: {connectedArticles}</strong>
+                <button className="close-btn" onClick={() => { setSelected(null); setLocalMode(false); }}>✕</button>
+              </div>
+              {renderData?.nodes.find((n: any) => n.id === selected)?.type === 'article' ? (
+                <ArticleNodeDetail nodeId={selected} graphData={renderData!} onNavigate={onNavigate} />
               ) : (
-                <KeywordNodeDetail nodeId={selected} graphData={graphData!} />
+                <KeywordNodeDetail nodeId={selected} graphData={renderData!} />
               )}
             </div>
           )}

@@ -6,10 +6,12 @@ import logging
 from datetime import datetime
 from contextlib import asynccontextmanager
 
+import csv
+import io
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .db import (
@@ -17,7 +19,7 @@ from .db import (
     get_stats, get_reports, get_report_by_month,
     get_monthly_trends, get_month_comparison, get_all_region_timeline,
     record_monthly_metrics, seed_articles, seed_reports, seed_metrics,
-    get_connection
+    search_articles, get_connection
 )
 from .scraper import collect_all_regions
 from .analyzer import batch_analyze
@@ -99,6 +101,82 @@ def get_article(article_id: int):
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     return article
+
+
+# ─── Search ────────────────────────────────────────────────
+
+@app.get("/api/articles/search")
+def search(
+    q: str = Query("", description="Search keyword"),
+    region: str = None,
+    category: str = None,
+    min_relevance: float = Query(0, ge=0),
+    date_from: str = None,
+    date_to: str = None,
+    limit: int = Query(50, le=200),
+    offset: int = 0
+):
+    """Full-text search across articles."""
+    if not q and not region and not category:
+        return {"articles": [], "count": 0, "query": q}
+    articles = search_articles(
+        query=q, region=region, category=category,
+        min_relevance=min_relevance,
+        date_from=date_from, date_to=date_to,
+        limit=limit, offset=offset
+    )
+    return {"articles": articles, "count": len(articles), "query": q}
+
+
+# ─── CSV Export ────────────────────────────────────────────
+
+@app.get("/api/articles/csv")
+def export_csv(
+    region: str = None,
+    category: str = None,
+    min_relevance: float = Query(0, ge=0),
+    limit: int = Query(10000, le=50000),
+):
+    """Export articles as CSV download."""
+    articles = get_articles(region=region, category=category,
+                           min_relevance=min_relevance, limit=limit)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id", "title", "translated_title", "url", "source", "region",
+        "category", "relevance_score", "summary", "why_it_matters",
+        "keywords", "published_at", "collected_at"
+    ])
+    for a in articles:
+        keywords = a.get("keywords", [])
+        if isinstance(keywords, (list, tuple)):
+            keywords_str = "; ".join(str(k) for k in keywords)
+        else:
+            keywords_str = str(keywords)
+        writer.writerow([
+            a["id"],
+            a.get("translated_title") or a["title"],
+            a.get("translated_title", ""),
+            a["url"],
+            a["source"],
+            a["region"],
+            a.get("category", "other"),
+            a.get("relevance_score", 0),
+            (a.get("summary") or "")[:500],
+            a.get("why_it_matters", ""),
+            keywords_str,
+            a.get("published_at") or "",
+            a.get("collected_at") or "",
+        ])
+
+    output.seek(0)
+    filename = f"ev-pulse-export-{datetime.now().strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 # ─── Collection ───────────────────────────────────────────
@@ -248,45 +326,98 @@ def regions():
 # ─── Wiki Graph (Obsidian-style) ───────────────────────
 
 @app.get("/api/graph")
-def get_graph(limit: int = 200):
-    """Build a graph of articles connected by keywords and regions."""
-    articles = get_articles(limit=limit, min_relevance=3)
+def get_graph(limit: int = 200, min_relevance: float = Query(3, ge=0)):
+    """Build a graph of articles connected by shared keywords, categories, and regions."""
+    articles = get_articles(limit=limit, min_relevance=min_relevance)
     nodes = {}
     edges = set()
 
+    CATEGORY_LABELS = {
+        "government_policy": "Policy", "ma_partnership": "M&A",
+        "charger_install": "Install", "charging_standards": "Standards",
+        "grid_pricing": "Grid", "ev_sales_stats": "Stats",
+    }
+
+    # Track keyword→articles for backlinks
+    kw_to_articles = {}
+
     for a in articles:
         art_id = f"article:{a['id']}"
+        category = a.get("category", "other")
         nodes[art_id] = {
             "id": art_id, "type": "article",
             "label": a.get("translated_title") or a["title"],
             "title_original": a["title"],
             "region": a.get("region", "?"),
+            "category": category,
             "url": a.get("url", ""),
             "relevance": a.get("relevance_score", 0),
         }
 
+        # Region node
         region_id = f"region:{a['region']}"
-        nodes.setdefault(region_id, {
-            "id": region_id, "type": "region",
-            "label": SOURCES.get(a["region"], {}).get("name", a["region"]),
-        })
+        if region_id not in nodes:
+            nodes[region_id] = {
+                "id": region_id, "type": "region",
+                "label": SOURCES.get(a["region"], {}).get("name", a["region"]),
+            }
         edges.add((art_id, region_id))
 
+        # Category node
+        cat_label = CATEGORY_LABELS.get(category, category)
+        cat_id = f"category:{category}"
+        if cat_id not in nodes:
+            nodes[cat_id] = {
+                "id": cat_id, "type": "category",
+                "label": cat_label,
+            }
+        edges.add((art_id, cat_id))
+
+        # Keyword nodes + backlink tracking
         keywords = a.get("keywords", [])
         if isinstance(keywords, str):
             try:
                 keywords = json.loads(keywords)
             except Exception:
                 keywords = []
-        for kw in keywords[:8]:
+        article_kws = []
+        for kw in keywords[:6]:
             if not kw or len(str(kw).strip()) < 2:
                 continue
-            kw_id = f"kw:{kw.strip()}"
-            nodes.setdefault(kw_id, {
-                "id": kw_id, "type": "keyword",
-                "label": kw.strip(),
-            })
+            kw_str = str(kw).strip()
+            kw_id = f"kw:{kw_str.lower()}"
+            if kw_id not in nodes:
+                nodes[kw_id] = {
+                    "id": kw_id, "type": "keyword",
+                    "label": kw_str,
+                }
             edges.add((art_id, kw_id))
+            article_kws.append(kw_id)
+            if kw_id not in kw_to_articles:
+                kw_to_articles[kw_id] = []
+            kw_to_articles[kw_id].append(art_id)
+
+        # Article→article backlinks via shared keywords (only 2+ shared)
+        art_kw_set = set(article_kws)
+        if len(art_kw_set) > 1:
+            for kw_id in art_kw_set:
+                for linked_art in kw_to_articles.get(kw_id, []):
+                    if linked_art != art_id and (art_id, linked_art) not in edges and (linked_art, art_id) not in edges:
+                        # Check if they share at least 2 keywords
+                        linked_kws = set()
+                        for a2 in articles:
+                            if f"article:{a2['id']}" == linked_art:
+                                kws2 = a2.get("keywords", [])
+                                if isinstance(kws2, str):
+                                    try:
+                                        kws2 = json.loads(kws2)
+                                    except Exception:
+                                        kws2 = []
+                                linked_kws = {f"kw:{str(k).strip().lower()}" for k in kws2[:6] if k and len(str(k).strip()) >= 2}
+                                break
+                        shared = art_kw_set & linked_kws
+                        if len(shared) >= 2:
+                            edges.add((art_id, linked_art))
 
     return {
         "nodes": list(nodes.values()),
@@ -295,6 +426,8 @@ def get_graph(limit: int = 200):
             "articles": sum(1 for n in nodes.values() if n["type"] == "article"),
             "keywords": sum(1 for n in nodes.values() if n["type"] == "keyword"),
             "regions": sum(1 for n in nodes.values() if n["type"] == "region"),
+            "categories": sum(1 for n in nodes.values() if n["type"] == "category"),
+            "backlinks": sum(1 for e in edges if e[0].startswith("article:") and e[1].startswith("article:")),
         }
     }
 
