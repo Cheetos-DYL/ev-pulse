@@ -308,7 +308,10 @@ def reanalyze_all(limit: int = 100):
         for article in articles:
             old_title = article.get("title", "")
             old_summary = article.get("summary", "")
-            if not old_title:
+            if not old_title or article.get("translated_title"):
+                continue
+            # Skip articles already in English (no non-Latin chars)
+            if not any(ord(c) > 0x2E80 for c in old_title):
                 continue
             try:
                 result = llm_analyze_article(article)
