@@ -95,39 +95,6 @@ def list_articles(
     return {"articles": articles, "count": len(articles)}
 
 
-@app.get("/api/articles/{article_id}")
-def get_article(article_id: int):
-    article = get_article_by_id(article_id)
-    if not article:
-        raise HTTPException(status_code=404, detail="Article not found")
-    return article
-
-
-# ─── Search ────────────────────────────────────────────────
-
-@app.get("/api/articles/search")
-def search(
-    q: str = Query("", description="Search keyword"),
-    region: str = None,
-    category: str = None,
-    min_relevance: float = Query(0, ge=0),
-    date_from: str = None,
-    date_to: str = None,
-    limit: int = Query(50, le=200),
-    offset: int = 0
-):
-    """Full-text search across articles."""
-    if not q and not region and not category:
-        return {"articles": [], "count": 0, "query": q}
-    articles = search_articles(
-        query=q, region=region, category=category,
-        min_relevance=min_relevance,
-        date_from=date_from, date_to=date_to,
-        limit=limit, offset=offset
-    )
-    return {"articles": articles, "count": len(articles), "query": q}
-
-
 # ─── CSV Export ────────────────────────────────────────────
 
 @app.get("/api/articles/csv")
@@ -177,6 +144,40 @@ def export_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+@app.get("/api/articles/{article_id}")
+def get_article(article_id: int):
+    article = get_article_by_id(article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return article
+
+
+# ─── Search ────────────────────────────────────────────────
+
+@app.get("/api/articles/search")
+def search(
+    q: str = Query("", description="Search keyword"),
+    region: str = None,
+    category: str = None,
+    min_relevance: float = Query(0, ge=0),
+    date_from: str = None,
+    date_to: str = None,
+    limit: int = Query(50, le=200),
+    offset: int = 0
+):
+    """Full-text search across articles."""
+    if not q and not region and not category:
+        return {"articles": [], "count": 0, "query": q}
+    articles = search_articles(
+        query=q, region=region, category=category,
+        min_relevance=min_relevance,
+        date_from=date_from, date_to=date_to,
+        limit=limit, offset=offset
+    )
+    return {"articles": articles, "count": len(articles), "query": q}
+
 
 
 # ─── Collection ───────────────────────────────────────────
