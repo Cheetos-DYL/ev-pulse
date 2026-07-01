@@ -19,7 +19,7 @@ from .db import (
     get_stats, get_reports, get_report_by_month,
     get_monthly_trends, get_month_comparison, get_all_region_timeline,
     record_monthly_metrics, seed_articles, seed_reports, seed_metrics,
-    search_articles, get_connection
+    search_articles, get_connection, insert_report
 )
 from .scraper import collect_all_regions
 from .analyzer import batch_analyze
@@ -473,7 +473,42 @@ def seed_database(data: SeedData):
     }
 
 
-@app.post("/api/reanalyze")
+@app.post("/api/maintenance/rebuild")
+def maintenance_rebuild():
+    """Delete all data and run fresh collection + analysis."""
+    logger.warning("MAINTENANCE: Rebuilding entire database from scratch")
+    try:
+        with get_connection() as conn:
+            conn.execute("DELETE FROM articles")
+            conn.execute("DELETE FROM reports")
+            conn.execute("DELETE FROM monthly_metrics")
+        logger.info("Database cleared, starting fresh collection...")
+    except Exception as e:
+        logger.error(f"Failed to clear database: {e}")
+
+    # Run fresh collection with LLM
+    results = collect_all_regions()
+    total_stored = 0
+    total_collected = sum(len(a) for a in results.values())
+
+    for region, articles in results.items():
+        analyzed = batch_analyze(articles, use_llm=True)
+        for article in analyzed:
+            result = insert_article(article)
+            if result:
+                total_stored += 1
+
+    # Generate report for current month
+    month = datetime.now().strftime("%Y-%m")
+    report_content = generate_monthly_report(month)
+    insert_report(month, report_content, total_stored)
+
+    return {
+        "status": "completed",
+        "collected": total_collected,
+        "stored": total_stored,
+        "message": f"Rebuilt database: {total_stored} articles from {total_collected} collected"
+    }
 def reanalyze_all(limit: int = 100, offset: int = 0):
     """Re-analyze existing articles with LLM to translate titles to English."""
     from .analyzer import llm_analyze_article, get_client, llm_call, get_last_llm_error
