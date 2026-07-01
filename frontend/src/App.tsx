@@ -23,9 +23,12 @@ function useTheme() {
 }
 
 const CATEGORIES: Record<string, string> = {
-  service: 'Service',
-  trend: 'Trend',
-  policy: 'Policy',
+  government_policy: 'Policy',
+  ma_partnership: 'M&A',
+  charger_install: 'Install',
+  charging_standards: 'Standards',
+  grid_pricing: 'Grid',
+  ev_sales_stats: 'Stats',
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -245,23 +248,60 @@ function ArticlesPage() {
   const [regionFilter, setRegionFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [minScore, setMinScore] = useState<number>(0);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const load = useCallback(() => {
+  const load = useCallback((search?: string) => {
     setLoading(true);
-    api.articles({
-      region: regionFilter || undefined,
-      category: categoryFilter || undefined,
-      min_relevance: minScore,
-      limit: 100,
-    }).then(res => setArticles(res.articles)).finally(() => setLoading(false));
-  }, [regionFilter, categoryFilter, minScore]);
+    const q = search ?? searchQuery;
+    if (q.trim()) {
+      api.search({
+        q: q.trim(),
+        region: regionFilter || undefined,
+        category: categoryFilter || undefined,
+        min_relevance: minScore,
+        limit: 100,
+      }).then(res => setArticles(res.articles)).finally(() => setLoading(false));
+    } else {
+      api.articles({
+        region: regionFilter || undefined,
+        category: categoryFilter || undefined,
+        min_relevance: minScore,
+        limit: 100,
+      }).then(res => setArticles(res.articles)).finally(() => setLoading(false));
+    }
+  }, [regionFilter, categoryFilter, minScore, searchQuery]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => load(value), 300);
+  };
+
+  const CATEGORY_KEYS = Object.keys(CATEGORIES);
+  const CATEGORY_LABELS = CATEGORIES;
 
   return (
     <div>
       <h1 className="page-title">Article Archive</h1>
       <p className="page-subtitle">Browse EV charging news from all regions</p>
+
+      <div className="search-bar" style={{ marginBottom: 16 }}>
+        <input
+          type="text"
+          placeholder="Search articles by keyword, company, country..."
+          value={searchQuery}
+          onChange={e => handleSearch(e.target.value)}
+          className="search-input"
+          style={{
+            width: '100%', padding: '10px 16px', borderRadius: 8,
+            border: '1px solid var(--color-border)', fontSize: 15,
+            background: 'var(--color-bg)', color: 'var(--color-ink)',
+          }}
+        />
+      </div>
 
       <div className="filters">
         <button className={`filter-btn ${!regionFilter ? 'active' : ''}`} onClick={() => setRegionFilter('')}>All</button>
@@ -273,10 +313,12 @@ function ArticlesPage() {
       </div>
       <div className="filters" style={{ marginBottom: 24 }}>
         <button className={`filter-btn ${!categoryFilter ? 'active' : ''}`} onClick={() => setCategoryFilter('')}>All Categories</button>
-        <button className={`filter-btn ${categoryFilter === 'service' ? 'active' : ''}`} onClick={() => setCategoryFilter('service')}>Service</button>
-        <button className={`filter-btn ${categoryFilter === 'trend' ? 'active' : ''}`} onClick={() => setCategoryFilter('trend')}>Trend</button>
-        <button className={`filter-btn ${categoryFilter === 'policy' ? 'active' : ''}`} onClick={() => setCategoryFilter('policy')}>Policy</button>
-        <button className={`filter-btn ${minScore >= 5 ? 'active' : ''}`} onClick={() => setMinScore(minScore >= 5 ? 0 : 5)}>Score ≥ 5</button>
+        {CATEGORY_KEYS.map(k => (
+          <button key={k} className={`filter-btn ${categoryFilter === k ? 'active' : ''}`} onClick={() => setCategoryFilter(k)}>
+            {CATEGORY_LABELS[k]}
+          </button>
+        ))}
+        <button className={`filter-btn ${minScore >= 30 ? 'active' : ''}`} onClick={() => setMinScore(minScore >= 30 ? 0 : 30)}>Score ≥ 30</button>
       </div>
 
       {loading ? (
@@ -284,11 +326,11 @@ function ArticlesPage() {
       ) : articles.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📰</div>
-          <div className="empty-state-text">No articles found. Check back after the next collection cycle.</div>
+          <div className="empty-state-text">No articles found{searchQuery ? ' matching your search' : ''}. Check back after the next collection cycle.</div>
         </div>
       ) : (
         <>
-          <p className="article-count">Showing {articles.length} articles</p>
+          <p className="article-count">{searchQuery ? `Search results: ${articles.length} articles` : `Showing ${articles.length} articles`}</p>
           {articles.map(a => <ArticleCard key={a.id} article={a} />)}
         </>
       )}

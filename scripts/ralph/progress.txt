@@ -1,0 +1,28 @@
+# Ralph Progress Log
+Started: $(date)
+---
+
+## Codebase Patterns
+- **Backend path:** `/home/don/projects/ev-pulse/backend/` — add to Python path before importing
+- **DB:** SQLite at `data/ev_pulse.db`, auto-seeded from `backend/app/seed_data.json`
+- **Scoring:** 4-factor (0-100): keyword match (0-40) + market impact (0-30) + recency (0-20) + source authority (0-10)
+- **Categories:** government_policy > ma_partnership > charger_install > charging_standards > grid_pricing > ev_sales_stats
+- **Delivery:** No-agent cron scripts at `~/.hermes/scripts/ev-pulse-weekly.py` and `ev-pulse-monthly.py`
+- **Weekly format:** TL;DR (top 3) → per-market with flag emojis → "why it matters" style → inline links
+- **LLM:** DeepSeek API via raw urllib (no openai library on Render)
+- **Frontend:** React+Vite at `frontend/`, WSJ/FT editorial style
+- **Cron:** Both monthly and weekly run as no-agent scripts via Hermes cron
+- **Venv:** `~/projects/ev-pulse/venv/`
+- **why_it_matters:** Must be in DB schema (`why_it_matters TEXT DEFAULT ''`) + INSERT statement. Set by both `_fallback_analysis` (keyword-only) and `llm_analyze_article` (LLM mode).
+- **DB migration:** New columns added in `init_db()` migration loop; also need manual `ALTER TABLE` on existing DB files
+
+
+## [2026-07-01 20:30 BST] - US-001
+- Added why_it_matters generation to _fallback_analysis in analyzer.py (category + region templates)
+- Added why_it_matters column to DB schema in db.py
+- Updated weekly digest fallback text in ev-pulse-weekly.py
+- **Learnings:**
+  - DB schema changes need both migration code (init_db) AND manual ALTER TABLE on existing DBs
+  - The =*** placeholder in write_file content causes syntax errors — must write raw Python dicts
+  - Category-specific fallback text is much more readable than generic "Key development"
+---

@@ -10,7 +10,7 @@ from datetime import datetime
 import logging
 import re
 
-from .sources import SOURCES, CATEGORIES
+from .sources import SOURCES
 
 logger = logging.getLogger(__name__)
 

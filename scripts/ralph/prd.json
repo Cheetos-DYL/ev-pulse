@@ -1,0 +1,87 @@
+{
+  "project": "EV Pulse",
+  "branchName": "ralph/ev-pulse-intent-v1",
+  "description": "Implement remaining INTENT.md features: frontend category sync, why-it-matters generation, Telegram format, archive search, and deployment",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add LLM-powered why-it-matters to keyword-only fallback",
+      "description": "As a reader, I want meaningful why it matters text even when DeepSeek API is unavailable so the weekly digest is useful without LLM.",
+      "acceptanceCriteria": [
+        "Generate meaningful why it matters text from article title, category, and region in keyword-only mode",
+        "Fallback text changes per category",
+        "Weekly digest shows useful summary instead of Key development placeholder",
+        "Typecheck passes",
+        "Run collection pipeline and verify digest output has meaningful summaries"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Implemented. _fallback_analysis now sets why_it_matters per category + region. DB schema updated with why_it_matters column. Weekly digest fallback also updated."
+    },
+    {
+      "id": "US-002",
+      "title": "Update frontend to use new categories",
+      "description": "As a dashboard user, I want to filter and see the new categories instead of the old ones.",
+      "acceptanceCriteria": [
+        "frontend/src/api.ts REGION_META updated with new category names and colors",
+        "Article filter dropdown shows new categories",
+        "Category badges on article cards use new labels",
+        "Dashboard stats show correct category breakdown",
+        "Typecheck passes",
+        "Run collection pipeline to get fresh data with new categories",
+        "Verify in browser"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Updated CATEGORIES in App.tsx, updated badge CSS classes in index.css. Frontend compiles successfully."
+    },
+    {
+      "id": "US-003",
+      "title": "Format weekly digest with Telegram character limit handling",
+      "description": "As a Telegram reader, I want the weekly digest formatted for mobile with proper 4096-char splitting.",
+      "acceptanceCriteria": [
+        "Each market section separated by emoji separator",
+        "Links use Telegram-friendly format",
+        "TL;DR section at top shows exactly 3 cross-market stories",
+        "Total message stays under 4096 chars (truncated gracefully)",
+        "Typecheck passes",
+        "Run digest script and verify output format"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Added 4096-char truncation logic to _format_digest. Drops lowest-priority market sections with truncation note."
+    },
+    {
+      "id": "US-004",
+      "title": "Add archive search endpoint with full-text search",
+      "description": "As a dashboard user, I want to find any article from the last 6 months within 30 seconds using keyword search.",
+      "acceptanceCriteria": [
+        "Add GET /api/articles/search endpoint with full-text search",
+        "Search returns results within 2 seconds",
+        "Supports search by keyword, region, category, date range, and min relevance score",
+        "Results sorted by relevance score descending",
+        "Frontend search bar wired to new endpoint",
+        "Typecheck passes",
+        "Test search endpoint locally with sample queries"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Added search_articles() in db.py, /api/articles/search endpoint in main.py, search bar in frontend."
+    },
+    {
+      "id": "US-005",
+      "title": "Deploy all changes to Render",
+      "description": "As a user, I want all changes deployed to Render so the production service is up to date.",
+      "acceptanceCriteria": [
+        "Export current DB to seed_data.json for auto-seed on deploy",
+        "Commit and push all backend + frontend changes to main branch",
+        "Trigger Render deploy",
+        "Verify /api/health returns OK",
+        "Verify /api/stats shows correct category breakdown"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "All changes deployed to Render. DB seed exported. Backend + frontend pushed."
+    }
+  ]
+}

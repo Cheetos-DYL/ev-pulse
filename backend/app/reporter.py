@@ -1,14 +1,27 @@
-"""Monthly report generation using LLM."""
+"""Monthly report generation using LLM — with executive summary and cross-market trends."""
 
 import os
 import json
 import logging
 from datetime import datetime
-from openai import OpenAI
 
-from .db import get_articles, insert_report, record_monthly_metrics
+from .db import get_articles, insert_report, record_monthly_metrics, get_month_comparison, get_connection
+from .sources import CATEGORY_NAMES
 
 logger = logging.getLogger(__name__)
+
+
+REGION_NAMES = {
+    'korea': '🇰🇷 South Korea',
+    'uae': '🇦🇪 UAE / Middle East',
+    'southeast_asia': '🌏 Southeast Asia',
+    'japan': '🇯🇵 Japan',
+    'australia': '🇦🇺 Australia',
+    'taiwan': '🇹🇼 Taiwan',
+    'africa': '🌍 Africa / South Africa',
+    'brazil': '🇧🇷 Brazil',
+    'mexico': '🇲🇽 Mexico / Central America',
+}
 
 
 def generate_monthly_report(month: str = None) -> str:
@@ -37,13 +50,13 @@ def generate_monthly_report(month: str = None) -> str:
 
 
 def _get_month_articles(month: str) -> list[dict]:
-    """Get articles collected in a given month, relevance >= 3."""
+    """Get articles collected in a given month, relevance >= 30 (on new 0-100 scale)."""
     from .db import get_connection
     with get_connection() as conn:
         rows = conn.execute(
             """SELECT * FROM articles 
                WHERE collected_at LIKE ? || '%'
-               AND relevance_score >= 3
+               AND relevance_score >= 15
                ORDER BY relevance_score DESC""",
             (month,)
         ).fetchall()
@@ -57,26 +70,46 @@ def _llm_report(articles: list[dict], month: str) -> str | None:
         if not api_key:
             return None
 
-        client = OpenAI(
-            api_key=api_key,
-            base_url=os.getenv('LLM_BASE_URL', 'https://api.openai.com/v1')
-        )
-
+        # Use raw urllib for Render compatibility
+        import urllib.request
+        import urllib.error
+        
+        base_url = os.getenv('LLM_BASE_URL', 'https://api.openai.com/v1')
+        
         # Prepare article summaries for LLM
         article_list = []
         for a in articles[:50]:  # Cap at 50 for token limits
+            cat_display = CATEGORY_NAMES.get(a.get('category', 'other'), a.get('category', 'other'))
+            why = a.get('why_it_matters', '')
             article_list.append(
-                f"- [{a['region']}] [{a.get('category', 'other')}] "
+                f"- [{a['region']}] [{cat_display}] "
                 f"Score {a['relevance_score']}: {a['title']}\n"
-                f"  {a.get('summary', 'No summary')}"
+                f"  {why}\n"
+                f"  {a.get('summary', '')[:200]}"
             )
 
         articles_text = "\n".join(article_list)
+
+        # Get prior month comparison
+        month_parts = month.split('-')
+        year, m = int(month_parts[0]), int(month_parts[1])
+        prev_month = f"{year}-{m-1:02d}" if m > 1 else f"{year-1}-12"
+        
+        try:
+            comparison = get_month_comparison(prev_month, month)
+            prev_total = comparison.get('a', {}).get('total', 0)
+            curr_total = comparison.get('b', {}).get('total', 0)
+            change = comparison.get('change_percent', 0)
+            comparison_text = f"Previous month ({prev_month}): {prev_total} articles. Current month: {curr_total} articles. Change: {change:+.1f}%"
+        except Exception:
+            comparison_text = ""
 
         prompt = f"""Generate a monthly EV Charging Intelligence Report for {month}.
 
 These articles were collected from emerging markets:
 Korea, UAE/Middle East, Southeast Asia, Japan, Australia, Taiwan, Africa, Brazil, Mexico.
+
+{comparison_text}
 
 Articles (sorted by relevance):
 {articles_text}
@@ -85,13 +118,17 @@ Create a structured report in this EXACT format (Markdown):
 
 # EV Charging Pulse — {month}
 
-## Key Takeaways
-(3-5 bullet points of the most important developments)
+## Executive Summary
+(3 bullet points of the TOP developments across all markets this month — what matters most globally)
+
+## Cross-Market Trends
+(2-3 observations about patterns visible across multiple regions this month)
 
 ## By Region
 
 ### Korea
-(0-3 items, each: **Title** — one-line summary. [Source](url))
+(Format: • [Why it matters → Headline. [Source](url)])
+Include 2-3 top items per region, sorted by impact.
 
 ### UAE / Middle East
 (same format)
@@ -119,11 +156,8 @@ Create a structured report in this EXACT format (Markdown):
 
 (Skip regions with no relevant items)
 
-## Cross-Border Insights
-(2-3 observations about trends spanning multiple regions)
-
 ## Data Points
-(Key numbers: installation counts, investment amounts, pricing changes)
+(Key numbers: installation counts, investment amounts, pricing changes. Include prior-month comparison where available.)
 
 ## Next Month Watch
 (What to watch for in the coming month)
@@ -131,15 +165,27 @@ Create a structured report in this EXACT format (Markdown):
 ---
 *Generated by EV Pulse on {datetime.now().strftime('%Y-%m-%d')}*
 *Based on {len(articles)} relevant articles from {len(set(a['region'] for a in articles))} regions*
-"""
+*{comparison_text}*"""
 
-        response = client.chat.completions.create(
-            model=os.getenv('LLM_MODEL', 'gpt-4o-mini'),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=3000
+        url = f"{base_url.rstrip('/')}/chat/completions"
+        payload = json.dumps({
+            "model": os.getenv('LLM_MODEL', 'gpt-4o-mini'),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 3000
+        }).encode()
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            method="POST"
         )
-        return response.choices[0].message.content
+        resp = urllib.request.urlopen(req, timeout=60)
+        body = json.loads(resp.read())
+        return body["choices"][0]["message"]["content"]
 
     except Exception as e:
         logger.error(f"LLM report generation failed: {e}")
@@ -155,22 +201,88 @@ def _structured_report(articles: list[dict], month: str) -> str:
             regions[r] = []
         regions[r].append(a)
 
+    # Get prior month comparison
+    month_parts = month.split('-')
+    year, m = int(month_parts[0]), int(month_parts[1])
+    prev_month = f"{year}-{m-1:02d}" if m > 1 else f"{year-1}-12"
+    comparison_text = ""
+    try:
+        comparison = get_month_comparison(prev_month, month)
+        prev_total = comparison.get('a', {}).get('total', 0)
+        curr_total = comparison.get('b', {}).get('total', 0)
+        change = comparison.get('change_percent', 0)
+        comparison_text = f"Previous month: {prev_total} articles. This month: {curr_total} articles ({change:+.1f}%)"
+    except Exception:
+        pass
+
     lines = [
         f"# EV Charging Pulse — {month}",
         "",
-        f"*Generated on {datetime.now().strftime('%Y-%m-%d')} | {len(articles)} articles*",
+        f"*Generated on {datetime.now().strftime('%Y-%m-%d')} | {len(articles)} articles across {len(regions)} regions*",
         "",
-        "## Articles by Region",
-        ""
+        "## Executive Summary",
+        "",
     ]
 
-    for region, region_articles in sorted(regions.items()):
-        lines.append(f"### {region.title()}")
-        for a in region_articles[:5]:
-            lines.append(f"- **{a['title']}** ({a.get('category', 'other')})")
-            lines.append(f"  {a.get('summary', 'No summary')}")
-            lines.append(f"  [Source]({a['url']}) — {a['source']}")
-            lines.append("")
+    # Top 3 articles as exec summary
+    sorted_all = sorted(articles, key=lambda a: a.get('relevance_score', 0), reverse=True)
+    for a in sorted_all[:3]:
+        why = a.get('why_it_matters', '')
+        why_str = f" — {why}" if why else ""
+        lines.append(f"- **{a['title']}**{why_str}")
+    lines.append("")
+
+    # Cross-market trends
+    lines.append("## Cross-Market Trends")
+    lines.append("Cross-market analysis available with LLM-enabled report generation.")
+    lines.append("")
+
+    # By region
+    lines.append("## By Region")
+    lines.append("")
+    sorted_regions = ['korea', 'uae', 'southeast_asia', 'japan', 'australia', 'taiwan', 'africa', 'brazil', 'mexico']
+    for region in sorted_regions:
+        region_articles = regions.get(region, [])
+        region_articles.sort(key=lambda a: a.get('relevance_score', 0), reverse=True)
+        rname = REGION_NAMES.get(region, region)
+        lines.append(f"### {rname}")
+        if not region_articles:
+            lines.append("No notable EV charging news this month.")
+        else:
+            for a in region_articles[:5]:
+                cat = CATEGORY_NAMES.get(a.get('category', ''), '')
+                why = a.get('why_it_matters', '')
+                cat_str = f" [{cat}]" if cat else ""
+                why_str = f" — {why}" if why else ""
+                lines.append(f"- **{a['title']}**{cat_str}{why_str}")
+                lines.append(f"  [Source]({a['url']}) — {a['source']}")
+                lines.append("")
         lines.append("")
+
+    # Data points
+    lines.append("## Data Points")
+    if comparison_text:
+        lines.append(f"- {comparison_text}")
+    for region, region_articles in regions.items():
+        total = len(region_articles)
+        avg_score = sum(a.get('relevance_score', 0) for a in region_articles) / max(total, 1)
+        cats = {}
+        for a in region_articles:
+            c = a.get('category', 'other')
+            cats[c] = cats.get(c, 0) + 1
+        top_cat = max(cats, key=cats.get) if cats else 'other'
+        top_cat_name = CATEGORY_NAMES.get(top_cat, top_cat)
+        lines.append(f"- **{REGION_NAMES.get(region, region)}**: {total} articles, avg score {avg_score:.0f}, top category: {top_cat_name}")
+    lines.append("")
+
+    # Next month watch
+    lines.append("## Next Month Watch")
+    lines.append("- Monitor EV charging infrastructure announcements across all regions")
+    lines.append("- Track policy changes and incentive updates")
+    lines.append("- Watch for new market entrants and pricing changes")
+    lines.append("")
+
+    lines.append("---")
+    lines.append(f"*Generated by EV Pulse | {datetime.now().strftime('%Y-%m-%d')}*")
 
     return "\n".join(lines)

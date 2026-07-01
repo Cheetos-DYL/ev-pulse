@@ -17,7 +17,7 @@ from .db import (
     get_stats, get_reports, get_report_by_month,
     get_monthly_trends, get_month_comparison, get_all_region_timeline,
     record_monthly_metrics, seed_articles, seed_reports, seed_metrics,
-    get_connection
+    search_articles, get_connection
 )
 from .scraper import collect_all_regions
 from .analyzer import batch_analyze
@@ -99,6 +99,31 @@ def get_article(article_id: int):
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     return article
+
+
+# ─── Search ────────────────────────────────────────────────
+
+@app.get("/api/articles/search")
+def search(
+    q: str = Query("", description="Search keyword"),
+    region: str = None,
+    category: str = None,
+    min_relevance: float = Query(0, ge=0),
+    date_from: str = None,
+    date_to: str = None,
+    limit: int = Query(50, le=200),
+    offset: int = 0
+):
+    """Full-text search across articles."""
+    if not q and not region and not category:
+        return {"articles": [], "count": 0, "query": q}
+    articles = search_articles(
+        query=q, region=region, category=category,
+        min_relevance=min_relevance,
+        date_from=date_from, date_to=date_to,
+        limit=limit, offset=offset
+    )
+    return {"articles": articles, "count": len(articles), "query": q}
 
 
 # ─── Collection ───────────────────────────────────────────

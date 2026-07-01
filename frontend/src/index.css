@@ -430,9 +430,12 @@ a.card-title:hover { color: var(--color-primary); text-decoration: none; }
   color: var(--color-primary);
 }
 
-.badge-service { color: var(--color-primary); }
-.badge-trend { color: var(--color-accent-teal, #1a8a84); }
-.badge-policy { color: var(--color-accent-orange, #b85a00); }
+.badge-government_policy { color: var(--color-accent-orange, #b85a00); }
+.badge-ma_partnership { color: var(--color-accent-purple, #7b4f9e); }
+.badge-charger_install { color: var(--color-primary); }
+.badge-charging_standards { color: var(--color-accent-teal, #1a8a84); }
+.badge-grid_pricing { color: var(--color-accent-amber, #c97800); }
+.badge-ev_sales_stats { color: var(--color-accent-green, #2a8a3a); }
 
 .badge-score {
   font-weight: 600;

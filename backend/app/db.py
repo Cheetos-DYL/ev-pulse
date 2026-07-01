@@ -28,7 +28,7 @@ def init_db():
                 summary TEXT,
                 content TEXT,
                 relevance_score REAL DEFAULT 0,
-                category TEXT CHECK(category IN ('service', 'trend', 'policy', 'other')),
+                category TEXT CHECK(category IN ('government_policy', 'ma_partnership', 'charger_install', 'charging_standards', 'grid_pricing', 'ev_sales_stats', 'other')),
                 tags TEXT DEFAULT '[]',
                 published_at TEXT,
                 collected_at TEXT DEFAULT (datetime('now')),
@@ -54,6 +54,7 @@ def init_db():
         for col in [
             ("translated_title", "TEXT"),
             ("keywords", "TEXT DEFAULT '[]'"),
+            ("why_it_matters", "TEXT DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE articles ADD COLUMN {col[0]} {col[1]}")
@@ -84,8 +85,8 @@ def insert_article(article: dict) -> int | None:
             cursor = conn.execute(
                 """INSERT INTO articles 
                    (title, translated_title, url, source, region, country, language, summary, content,
-                    relevance_score, category, tags, keywords, published_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    relevance_score, category, tags, keywords, why_it_matters, published_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     article['title'], article.get('translated_title'),
                     article['url'], article['source'],
@@ -95,6 +96,7 @@ def insert_article(article: dict) -> int | None:
                     article.get('category', 'other'),
                     str(article.get('tags', [])),
                     str(article.get('keywords', [])),
+                    article.get('why_it_matters', ''),
                     article.get('published_at')
                 )
             )
@@ -128,6 +130,60 @@ def get_articles(region=None, category=None, min_relevance=0, limit=50, offset=0
             articles.append(d)
         return articles
 
+
+def search_articles(query: str, region: str = None, category: str = None,
+                    min_relevance: float = 0, date_from: str = None, date_to: str = None,
+                    limit: int = 50, offset: int = 0) -> list[dict]:
+    """Full-text search across article title, summary, and source.
+    Returns results sorted by relevance_score descending.
+    """
+    with get_connection() as conn:
+        conditions = []
+        params = []
+        
+        # Full-text search across title, summary, source
+        if query:
+            conditions.append("(title LIKE ? OR summary LIKE ? OR source LIKE ?)")
+            like_q = f"%{query}%"
+            params.extend([like_q, like_q, like_q])
+        
+        if region:
+            conditions.append("region = ?")
+            params.append(region)
+        
+        if category:
+            conditions.append("category = ?")
+            params.append(category)
+        
+        if min_relevance > 0:
+            conditions.append("relevance_score >= ?")
+            params.append(min_relevance)
+        
+        if date_from:
+            conditions.append("collected_at >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            conditions.append("collected_at <= ?")
+            params.append(date_to)
+        
+        where = " AND ".join(conditions) if conditions else "1=1"
+        query_sql = f"""SELECT * FROM articles WHERE {where}
+                   ORDER BY relevance_score DESC, collected_at DESC
+                   LIMIT ? OFFSET ?"""
+        params.extend([limit, offset])
+        
+        articles = []
+        for row in conn.execute(query_sql, params).fetchall():
+            d = dict(row)
+            for field in ['tags', 'keywords']:
+                if isinstance(d.get(field), str):
+                    try:
+                        d[field] = json.loads(d[field])
+                    except Exception:
+                        d[field] = []
+            articles.append(d)
+        return articles
 
 def get_article_by_id(article_id: int):
     with get_connection() as conn:
