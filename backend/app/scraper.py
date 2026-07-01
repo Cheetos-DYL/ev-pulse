@@ -145,17 +145,24 @@ def collect_from_rss(region: str) -> list[dict]:
     query = source_config.get("google_news_query", f"{region} EV charging")
     google_articles = _get_google_news_rss(query, region_lang)
     for a in google_articles:
-        a['region'] = region
-        a['source'] = f"Google News ({region_lang})"
-    articles.extend(google_articles)
+        if _is_ev_related(a['title'], a.get('summary', ''), a.get('language', 'en')):
+            a['region'] = region
+            a['source'] = f"Google News ({region_lang})"
+            articles.append(a)
+        else:
+            logger.debug(f"Skipping non-EV Google News article: {a['title'][:60]}")
     
     # 3. Fallback: English Google News query for broader coverage
-    en_query = f"{region} EV charging electric vehicle"
-    en_articles = _get_google_news_rss(en_query, "en")
-    for a in en_articles:
-        a['region'] = region
-        a['source'] = f"Google News"
-    articles.extend(en_articles)
+    if google_articles:  # Only if local-lang query got hits
+        en_query = f"{region} EV charging electric vehicle"
+        en_articles = _get_google_news_rss(en_query, "en")
+        for a in en_articles:
+            if _is_ev_related(a['title'], a.get('summary', ''), 'en'):
+                a['region'] = region
+                a['source'] = f"Google News"
+                articles.append(a)
+            else:
+                logger.debug(f"Skipping non-EV English Google article: {a['title'][:60]}")
     
     return articles
 
