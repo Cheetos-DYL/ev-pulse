@@ -245,6 +245,60 @@ def regions():
     return {"regions": {k: v["name"] for k, v in SOURCES.items()}}
 
 
+# ─── Wiki Graph (Obsidian-style) ───────────────────────
+
+@app.get("/api/graph")
+def get_graph(limit: int = 200):
+    """Build a graph of articles connected by keywords and regions."""
+    articles = get_articles(limit=limit, min_relevance=3)
+    nodes = {}
+    edges = set()
+
+    for a in articles:
+        art_id = f"article:{a['id']}"
+        nodes[art_id] = {
+            "id": art_id, "type": "article",
+            "label": a.get("translated_title") or a["title"],
+            "title_original": a["title"],
+            "region": a.get("region", "?"),
+            "url": a.get("url", ""),
+            "relevance": a.get("relevance_score", 0),
+        }
+
+        region_id = f"region:{a['region']}"
+        nodes.setdefault(region_id, {
+            "id": region_id, "type": "region",
+            "label": SOURCES.get(a["region"], {}).get("name", a["region"]),
+        })
+        edges.add((art_id, region_id))
+
+        keywords = a.get("keywords", [])
+        if isinstance(keywords, str):
+            try:
+                keywords = json.loads(keywords)
+            except Exception:
+                keywords = []
+        for kw in keywords[:8]:
+            if not kw or len(str(kw).strip()) < 2:
+                continue
+            kw_id = f"kw:{kw.strip()}"
+            nodes.setdefault(kw_id, {
+                "id": kw_id, "type": "keyword",
+                "label": kw.strip(),
+            })
+            edges.add((art_id, kw_id))
+
+    return {
+        "nodes": list(nodes.values()),
+        "edges": [{"source": s, "target": t} for s, t in edges],
+        "stats": {
+            "articles": sum(1 for n in nodes.values() if n["type"] == "article"),
+            "keywords": sum(1 for n in nodes.values() if n["type"] == "keyword"),
+            "regions": sum(1 for n in nodes.values() if n["type"] == "region"),
+        }
+    }
+
+
 # ─── Newsletter ─────────────────────────────────────────
 
 @app.get("/api/newsletter/{month}")

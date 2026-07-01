@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, REGION_META } from './api';
 import type { Article, Stats, Report, Trend, ComparisonResult, TimelineEntry } from './api';
+import * as d3 from 'd3';
 import './index.css';
 
-type Page = 'home' | 'articles' | 'reports' | 'compare' | 'regions' | 'region-detail' | 'report-detail';
+type Page = 'home' | 'articles' | 'reports' | 'compare' | 'regions' | 'graph' | 'region-detail' | 'report-detail';
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -64,7 +65,7 @@ export default function App() {
             <span className="logo-text">EV Pulse</span>
           </div>
           <div className="nav-links">
-            {(['home', 'articles', 'reports', 'compare', 'regions'] as Page[]).map(p => (
+            {(['home', 'articles', 'reports', 'compare', 'graph', 'regions'] as Page[]).map(p => (
               <button
                 key={p}
                 className={`nav-link ${page === p ? 'active' : ''}`}
@@ -95,6 +96,7 @@ export default function App() {
         {page === 'reports' && <ReportsPage onNavigate={navigate} />}
         {page === 'report-detail' && <ReportDetailPage month={reportMonth} onBack={() => navigate('reports')} />}
         {page === 'compare' && <ComparePage />}
+        {page === 'graph' && <GraphPage onNavigate={navigate} />}
         {page === 'regions' && <RegionsPage onNavigate={navigate} />}
         {page === 'region-detail' && <RegionDetailPage regionKey={regionKey} />}
       </div>
@@ -566,6 +568,234 @@ function ComparePage() {
     </div>
   );
 }
+
+/* ════════════════════════════════════════════════
+   Knowledge Graph (Obsidian-style)
+   ════════════════════════════════════════════════ */
+
+function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => void }) {
+  const [graphData, setGraphData] = useState<{ nodes: any[]; edges: any[]; stats: any } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch('/api/graph?limit=200').then(r => r.json()).then(data => {
+      setGraphData(data);
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!graphData || !svgRef.current || !containerRef.current) return;
+
+    const width = containerRef.current.clientWidth;
+    const height = Math.max(500, window.innerHeight - 250);
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('*').remove();
+
+    // Color scales
+    const colorMap: Record<string, string> = {
+      article: '#60a5fa',
+      keyword: '#34d399',
+      region: '#fbbf24',
+    };
+
+    // Build simulation
+    const nodes = graphData.nodes.map(n => ({ ...n }));
+    const edges = graphData.edges.map(e => ({ ...e }));
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+    const simulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(edges).id((d: any) => d.id).distance(80))
+      .force('charge', d3.forceManyBody().strength(-200))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(20));
+
+    const link = svg.append('g')
+      .selectAll('line')
+      .data(edges)
+      .join('line')
+      .attr('stroke', '#555')
+      .attr('stroke-width', 0.8)
+      .attr('stroke-opacity', 0.4);
+
+    const node = svg.append('g')
+      .selectAll('g')
+      .data(nodes)
+      .join('g')
+      .style('cursor', 'pointer')
+      .on('mouseover', (_, d) => setHovered(d.id))
+      .on('mouseout', () => setHovered(null))
+      .on('click', (_, d) => {
+        if (d.type === 'article') {
+          setSelected(d.id === selected ? null : d.id);
+        } else {
+          // Toggle keyword/region selection to highlight connected articles
+          setSelected(d.id === selected ? null : d.id);
+        }
+      })
+      .call(d3.drag<any, any>()
+        .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+        .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+        .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+      );
+
+    // Circles
+    node.append('circle')
+      .attr('r', d => d.type === 'article' ? 6 : d.type === 'region' ? 10 : 5)
+      .attr('fill', d => colorMap[d.type] || '#888')
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1.5);
+
+    // Labels (show on hover or for selected nodes)
+    node.append('text')
+      .text(d => {
+        const label = d.label || '';
+        return label.length > 25 ? label.slice(0, 24) + '…' : label;
+      })
+      .attr('x', d => d.type === 'article' ? 10 : 12)
+      .attr('y', 4)
+      .attr('font-size', '11px')
+      .attr('fill', '#ccc')
+      .attr('opacity', d => (d.id === hovered || d.id === selected) ? 1 : 0)
+      .style('pointer-events', 'none');
+
+    // Highlight connected nodes when something is selected
+    const tick = () => {
+      link
+        .attr('x1', (d: any) => d.source.x)
+        .attr('y1', (d: any) => d.source.y)
+        .attr('x2', (d: any) => d.target.x)
+        .attr('y2', (d: any) => d.target.y);
+
+      node.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
+
+      // Opacity based on selection
+      if (selected) {
+        const connectedIds = new Set<string>();
+        connectedIds.add(selected);
+        edges.forEach(e => {
+          const sid = typeof e.source === 'object' ? e.source.id : e.source;
+          const tid = typeof e.target === 'object' ? e.target.id : e.target;
+          if (sid === selected) connectedIds.add(tid);
+          if (tid === selected) connectedIds.add(sid);
+        });
+
+        link.attr('stroke-opacity', (e: any) => {
+          const sid = typeof e.source === 'object' ? e.source.id : e.source;
+          const tid = typeof e.target === 'object' ? e.target.id : e.target;
+          return (sid === selected || tid === selected) ? 0.8 : 0.05;
+        });
+
+        node.select('circle').attr('opacity', (d: any) => connectedIds.has(d.id) ? 1 : 0.15);
+        node.select('text').attr('opacity', (d: any) => connectedIds.has(d.id) ? 1 : 0);
+      } else {
+        link.attr('stroke-opacity', hovered ? (e: any) => {
+          const sid = typeof e.source === 'object' ? e.source.id : e.source;
+          const tid = typeof e.target === 'object' ? e.target.id : e.target;
+          return (sid === hovered || tid === hovered) ? 0.8 : 0.1;
+        } : 0.3);
+        node.select('circle').attr('opacity', hovered ? (d: any) => d.id === hovered ? 1 : 0.3 : 1);
+      }
+    };
+
+    simulation.on('tick', tick);
+
+    // Zoom
+    svg.call(d3.zoom<any, any>()
+      .extent([[0, 0], [width, height]])
+      .scaleExtent([0.3, 4])
+      .on('zoom', (e) => svg.selectAll('g').attr('transform', e.transform))
+    );
+
+    // Cleanup
+    return () => { simulation.stop(); };
+  }, [graphData, hovered, selected]);
+
+  // Legend info
+  const stats = graphData?.stats;
+
+  return (
+    <div className="page">
+      <div className="graph-header">
+        <h2 className="page-title">Knowledge Graph</h2>
+        <div className="graph-legend">
+          <span><span className="dot" style={{ background: '#60a5fa' }} /> Article</span>
+          <span><span className="dot" style={{ background: '#34d399' }} /> Keyword</span>
+          <span><span className="dot" style={{ background: '#fbbf24' }} /> Region</span>
+          {stats && <span className="stats">{stats.articles} articles · {stats.keywords} keywords · {stats.regions} regions</span>}
+        </div>
+      </div>
+      {loading ? (
+        <div className="loading">Loading graph...</div>
+      ) : (
+        <div className="graph-container" ref={containerRef}>
+          <svg ref={svgRef} width="100%" height={Math.max(500, typeof window !== 'undefined' ? window.innerHeight - 250 : 500)} />
+          {selected && (
+            <div className="graph-detail">
+              <button className="close-btn" onClick={() => setSelected(null)}>✕</button>
+              {graphData?.nodes.find(n => n.id === selected)?.type === 'article' ? (
+                <ArticleNodeDetail nodeId={selected} graphData={graphData!} onNavigate={onNavigate} />
+              ) : (
+                <KeywordNodeDetail nodeId={selected} graphData={graphData!} />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ArticleNodeDetail({ nodeId, graphData, onNavigate }: { nodeId: string; graphData: any; onNavigate: any }) {
+  const node = graphData.nodes.find((n: any) => n.id === nodeId);
+  if (!node) return null;
+  const regionMeta = REGION_META[node.region] || {};
+  return (
+    <div className="node-detail">
+      <h3>{node.label}</h3>
+      {node.title_original && node.title_original !== node.label && (
+        <p className="original-title">{node.title_original}</p>
+      )}
+      <p className="meta">{regionMeta.flag} {regionMeta.name || node.region} · Score {node.relevance}</p>
+      <a href={node.url} target="_blank" rel="noopener noreferrer" className="btn-link">Read Article →</a>
+    </div>
+  );
+}
+
+function KeywordNodeDetail({ nodeId, graphData }: { nodeId: string; graphData: any }) {
+  const node = graphData.nodes.find((n: any) => n.id === nodeId);
+  if (!node) return null;
+
+  // Find connected articles
+  const connArticles = graphData.edges
+    .filter((e: any) => e.source === nodeId || e.target === nodeId)
+    .map((e: any) => {
+      const otherId = e.source === nodeId ? e.target : e.source;
+      return graphData.nodes.find((n: any) => n.id === otherId);
+    })
+    .filter((n: any) => n && n.type === 'article');
+
+  return (
+    <div className="node-detail">
+      <h3>{node.label}</h3>
+      <p className="type-badge">{node.type === 'region' ? '🌍 Region' : '🔑 Keyword'}</p>
+      <p className="count">{connArticles.length} related articles</p>
+      <div className="related-list">
+        {connArticles.slice(0, 10).map((a: any) => (
+          <div key={a.id} className="related-item">
+            <span className="related-title">{(a.label || '').slice(0, 50)}</span>
+            <span className="related-region">{REGION_META[a.region]?.flag} {a.region}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 /* ════════════════════════════════════════════════
    Regions

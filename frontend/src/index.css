@@ -979,3 +979,179 @@ a.card-title:hover { color: var(--color-primary); text-decoration: none; }
   .nav-links { display: none; }
   .footer { padding: var(--space-lg) var(--space-md); }
 }
+
+/* ═══════════════════════════════════════════════
+   Knowledge Graph
+   ═══════════════════════════════════════════════ */
+
+.graph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.graph-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--color-text-soft);
+}
+
+.graph-legend .dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.graph-legend .stats {
+  color: var(--color-text-soft);
+  font-size: 12px;
+  border-left: 1px solid var(--color-hairline);
+  padding-left: 16px;
+}
+
+.graph-container {
+  position: relative;
+  width: 100%;
+  background: var(--color-canvas-soft);
+  border-radius: 8px;
+  border: 1px solid var(--color-hairline);
+  overflow: hidden;
+}
+
+.graph-container svg {
+  display: block;
+}
+
+.graph-container text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  pointer-events: none;
+}
+
+.graph-detail {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 320px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-radius: 8px;
+  border: 1px solid var(--color-hairline);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  padding: var(--space-lg);
+}
+
+.graph-detail .close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--color-text-soft);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 8px;
+}
+
+.graph-detail .close-btn:hover {
+  color: var(--color-text);
+}
+
+.node-detail h3 {
+  font-family: var(--font-headline, Georgia, 'Times New Roman', serif);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0 0 8px;
+  color: var(--color-text);
+}
+
+.node-detail .original-title {
+  font-size: 12px;
+  color: var(--color-text-soft);
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  background: var(--color-canvas-soft);
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.node-detail .meta {
+  font-size: 12px;
+  color: var(--color-text-soft);
+  margin: 0 0 12px;
+}
+
+.node-detail .type-badge {
+  font-size: 12px;
+  color: var(--color-text-soft);
+  margin: 0 0 4px;
+}
+
+.node-detail .count {
+  font-size: 12px;
+  color: var(--color-text-soft);
+  margin: 0 0 12px;
+}
+
+.node-detail .btn-link {
+  display: inline-block;
+  color: var(--color-primary, #0066cc);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.node-detail .btn-link:hover {
+  text-decoration: underline;
+}
+
+.related-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.related-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-hairline);
+  font-size: 12px;
+}
+
+.related-title {
+  color: var(--color-text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.related-region {
+  color: var(--color-text-soft);
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 15px;
+  color: var(--color-text-soft);
+}
+
+@media (max-width: 768px) {
+  .graph-header { flex-direction: column; align-items: flex-start; }
+  .graph-detail { width: calc(100% - 24px); right: 12px; }
+  .graph-legend { flex-wrap: wrap; }
+}
