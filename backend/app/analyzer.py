@@ -362,11 +362,64 @@ Return ONLY valid JSON, no markdown."""
         return _fallback_analysis(article)
 
 
+def _extract_keywords_fallback(article: dict) -> list[str]:
+    """Extract keywords from article title and summary without LLM."""
+    text = f"{article.get('title', '')} {article.get('summary', '')} {article.get('source', '')}".lower()
+    
+    # Known EV charging keywords to extract
+    known_terms = [
+        "ev charging", "electric vehicle", "charging station", "charging point",
+        "charging network", "charging infrastructure", "fast charging", "ultra-fast",
+        "charging hub", "supercharger", "charging tariff", "charging cost",
+        "v2g", "vehicle-to-grid", "smart charging", "bidirectional charging",
+        "nacs", "ccs", "chademo", "charging standard",
+        "subsidy", "incentive", "government policy", "regulation",
+        "partnership", "investment", "joint venture", "funding",
+        "ev sales", "ev adoption", "market share", "ev registration",
+        "renewable energy", "solar charging", "grid integration",
+        "battery swapping", "charging app", "roaming",
+    ]
+    
+    # Also extract region/country names
+    regions = {
+        "korea", "south korea", "seoul", "한국", "전기차",
+        "uae", "dubai", "abu dhabi", "middle east",
+        "japan", "tokyo", "充電", "ev充電",
+        "australia", "sydney", "melbourne",
+        "taiwan", "taipei", "台灣", "電動車",
+        "brazil", "brasil", "sao paulo", "veículo elétrico",
+        "mexico", "méxico", "mexico city", "vehículo eléctrico",
+        "africa", "south africa", "kenya", "nigeria",
+        "southeast asia", "singapore", "thailand", "indonesia", "vietnam", "malaysia",
+        "china", "europe", "us", "united states",
+    }
+    
+    found = []
+    for term in known_terms:
+        if term in text:
+            found.append(term)
+    
+    for region in regions:
+        if region in text:
+            found.append(region)
+    
+    # Deduplicate and limit
+    seen = set()
+    unique = []
+    for kw in found:
+        if kw not in seen:
+            seen.add(kw)
+            unique.append(kw)
+    
+    return unique[:10]
+
+
 def _fallback_analysis(article: dict) -> dict:
     """Keyword-only fallback when LLM is unavailable."""
     article['relevance_score'] = compute_relevance_score(article)
     article['category'] = assign_category(article)
     article['tags'] = []
+    article['keywords'] = _extract_keywords_fallback(article)
     article['analyzed'] = 1
     
     # Generate meaningful "why it matters" text from category + region
