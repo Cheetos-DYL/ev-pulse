@@ -26,3 +26,13 @@ Started: $(date)
   - The =*** placeholder in write_file content causes syntax errors — must write raw Python dicts
   - Category-specific fallback text is much more readable than generic "Key development"
 ---
+
+## [2026-07-05] - US-006: Fix frontend category filters + wire graph toggles
+- Fixed ArticlesPage category filter buttons: replaced hardcoded old category names ('service', 'trend', 'policy') with dynamic rendering from CATEGORIES map, matching actual backend categories
+- Fixed GraphPage toggles: "Cats" and "Links" checkboxes now have onChange handlers and actually filter category nodes / article↔article backlinks from the graph
+- Files changed: frontend/src/App.tsx
+- **Learnings:**
+  - The category filter buttons were still using pre-refactor values ('service', 'trend', 'policy') — must use Object.entries(CATEGORIES) for dynamic rendering
+  - Graph toggles had checked state + state vars but no onChange handlers, making them purely cosmetic
+  - filterRenderData pattern (useMemo on top of localGraph || graphData) cleanly layers toggle filters without redundant API calls
+---

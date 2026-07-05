@@ -82,6 +82,21 @@
       "priority": 5,
       "passes": true,
       "notes": "All changes deployed to Render. DB seed exported. Backend + frontend pushed."
+    },
+    {
+      "id": "US-006",
+      "title": "Fix frontend category filter buttons + wire graph toggle checkboxes",
+      "description": "As a dashboard user, I want category filter buttons to use actual backend categories and graph toggles to actually work.",
+      "acceptanceCriteria": [
+        "ArticlesPage category filters use dynamic CATEGORIES map instead of hardcoded old 'service'/'trend'/'policy' values",
+        "Graph 'Cats' checkbox actually filters category nodes from the graph",
+        "Graph 'Links' checkbox actually filters article↔article backlinks from the graph",
+        "Typecheck passes",
+        "Frontend builds without errors"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Fixed ArticlesPage category filter buttons to render dynamically from CATEGORIES map. Wired up graph page toggle checkboxes with onChange handlers + useMemo filtering logic."
     }
   ]
 }

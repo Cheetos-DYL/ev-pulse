@@ -291,9 +291,11 @@ function ArticlesPage() {
       </div>
       <div className="filters" style={{ marginBottom: 24 }}>
         <button className={`filter-btn ${!categoryFilter ? 'active' : ''}`} onClick={() => setCategoryFilter('')}>All Categories</button>
-        <button className={`filter-btn ${categoryFilter === 'service' ? 'active' : ''}`} onClick={() => setCategoryFilter('service')}>Service</button>
-        <button className={`filter-btn ${categoryFilter === 'trend' ? 'active' : ''}`} onClick={() => setCategoryFilter('trend')}>Trend</button>
-        <button className={`filter-btn ${categoryFilter === 'policy' ? 'active' : ''}`} onClick={() => setCategoryFilter('policy')}>Policy</button>
+        {Object.entries(CATEGORIES).map(([key, label]) => (
+          <button key={key} className={`filter-btn ${categoryFilter === key ? 'active' : ''}`} onClick={() => setCategoryFilter(key)}>
+            {label}
+          </button>
+        ))}
         <button className={`filter-btn ${minScore >= 5 ? 'active' : ''}`} onClick={() => setMinScore(minScore >= 5 ? 0 : 5)}>Score ≥ 5</button>
       </div>
 
@@ -640,8 +642,39 @@ function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => vo
     return { nodes: filteredNodes, edges: filteredEdges };
   }, [graphData, selected, localMode]);
 
-  // Merge local graph data for rendering
-  const renderData = localGraph || graphData;
+  // Apply toggle filters (categories / backlinks) on top of render data
+  const filteredRenderData = useMemo(() => {
+    const base = localGraph || graphData;
+    if (!base) return null;
+
+    let nodes = base.nodes;
+    let edges = base.edges;
+
+    // Filter out category nodes if showCategories is off
+    if (!showCategories) {
+      const categoryIds = new Set(nodes.filter((n: any) => n.type === 'category').map((n: any) => n.id));
+      nodes = nodes.filter((n: any) => !categoryIds.has(n.id));
+      edges = edges.filter((e: any) => {
+        const sid = typeof e.source === 'object' ? e.source.id : e.source;
+        const tid = typeof e.target === 'object' ? e.target.id : e.target;
+        return !categoryIds.has(sid) && !categoryIds.has(tid);
+      });
+    }
+
+    // Filter out article↔article backlinks if showBacklinks is off
+    if (!showBacklinks) {
+      edges = edges.filter((e: any) => {
+        const sid = typeof e.source === 'object' ? e.source.id : e.source;
+        const tid = typeof e.target === 'object' ? e.target.id : e.target;
+        return !(sid.startsWith('article:') && tid.startsWith('article:'));
+      });
+    }
+
+    return { nodes, edges };
+  }, [graphData, localGraph, showCategories, showBacklinks]);
+
+  // Merge filtered data for rendering
+  const renderData = filteredRenderData;
 
   useEffect(() => {
     if (!renderData || !svgRef.current || !containerRef.current) return;
@@ -824,11 +857,11 @@ function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => vo
               Local
             </label>
             <label className="graph-toggle" title="Show/hide category nodes">
-              <input type="checkbox" checked={showCategories} />
+              <input type="checkbox" checked={showCategories} onChange={() => setShowCategories(!showCategories)} />
               Cats
             </label>
             <label className="graph-toggle" title="Show/hide article backlinks">
-              <input type="checkbox" checked={showBacklinks} />
+              <input type="checkbox" checked={showBacklinks} onChange={() => setShowBacklinks(!showBacklinks)} />
               Links
             </label>
           </div>
