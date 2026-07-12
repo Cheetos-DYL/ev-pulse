@@ -248,16 +248,35 @@ function ArticlesPage() {
   const [regionFilter, setRegionFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [minScore, setMinScore] = useState<number>(0);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedQuery, setDebouncedQuery] = useState<string>('');
+
+  // Debounce search input by 400ms
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const load = useCallback(() => {
     setLoading(true);
-    api.articles({
+    const params = {
       region: regionFilter || undefined,
       category: categoryFilter || undefined,
       min_relevance: minScore,
       limit: 100,
-    }).then(res => setArticles(res.articles)).finally(() => setLoading(false));
-  }, [regionFilter, categoryFilter, minScore]);
+    };
+    if (debouncedQuery.trim()) {
+      api.search({ q: debouncedQuery.trim(), ...params })
+        .then(res => setArticles(res.articles))
+        .catch(() => setArticles([]))
+        .finally(() => setLoading(false));
+    } else {
+      api.articles(params)
+        .then(res => setArticles(res.articles))
+        .catch(() => setArticles([]))
+        .finally(() => setLoading(false));
+    }
+  }, [regionFilter, categoryFilter, minScore, debouncedQuery]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -266,6 +285,7 @@ function ArticlesPage() {
     if (regionFilter) params.set('region', regionFilter);
     if (categoryFilter) params.set('category', categoryFilter);
     if (minScore) params.set('min_relevance', String(minScore));
+    if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim());
     window.open(`/api/articles/csv?${params}`, '_blank');
   };
 
@@ -279,6 +299,23 @@ function ArticlesPage() {
         <button className="btn btn-outline" onClick={exportCsv}>
           ⬇ CSV Export
         </button>
+      </div>
+
+      {/* Search bar */}
+      <div className="search-bar">
+        <span className="search-icon">🔍</span>
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Search articles by keyword, source, or topic…"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button className="search-clear" onClick={() => { setSearchQuery(''); setDebouncedQuery(''); }}>
+            ✕
+          </button>
+        )}
       </div>
 
       <div className="filters">
@@ -304,11 +341,19 @@ function ArticlesPage() {
       ) : articles.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📰</div>
-          <div className="empty-state-text">No articles found. Check back after the next collection cycle.</div>
+          <div className="empty-state-text">
+            {debouncedQuery.trim()
+              ? `No articles match "${debouncedQuery.trim()}". Try different keywords or adjust filters.`
+              : 'No articles found. Check back after the next collection cycle.'}
+          </div>
         </div>
       ) : (
         <>
-          <p className="article-count">Showing {articles.length} articles</p>
+          <p className="article-count">
+            {debouncedQuery.trim()
+              ? `Showing ${articles.length} articles matching "${debouncedQuery.trim()}"`
+              : `Showing ${articles.length} articles`}
+          </p>
           {articles.map(a => <ArticleCard key={a.id} article={a} />)}
         </>
       )}

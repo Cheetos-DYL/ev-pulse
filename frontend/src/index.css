@@ -649,6 +649,55 @@ a.card-title:hover { color: var(--color-primary); text-decoration: none; }
 
 .article-count { color: var(--color-ink-faint); font-size: 13px; margin-bottom: var(--space-md); }
 
+/* ── Search Bar ── */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-md);
+  padding: 0 12px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  background: var(--color-surface);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.search-bar:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.08);
+}
+.search-icon {
+  font-size: 14px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 10px 0;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+}
+.search-input::placeholder {
+  color: var(--color-ink-faint);
+}
+.search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 14px;
+  color: var(--color-ink-faint);
+  border-radius: var(--rounded-sm);
+  flex-shrink: 0;
+}
+.search-clear:hover {
+  color: var(--color-ink);
+  background: var(--color-canvas-soft);
+}
+
 /* ═══════════════════════════════════════════════
    Empty & Loading
    ═══════════════════════════════════════════════ */
