@@ -50,3 +50,13 @@ Started: $(date)
   - Debounce pattern (400ms) prevents excessive API calls during typing
   - Need to clear `debouncedQuery` too when clearing search input, not just `searchQuery`
 ---
+
+## [2026-07-19] - Weekly maintenance: Fix missing route on reanalyze endpoint
+- `reanalyze_all()` function in main.py had no `@app.post` decorator — was dead code despite being fully implemented
+- Added `@app.post("/api/reanalyze")` to register the reanalyze endpoint
+- Route referenced by `scripts/translate_articles.py` but previously returned 404
+- Files changed: backend/app/main.py (1 line added)
+- **Learnings:**
+  - Always check that function definitions have their route decorators — a missing decorator silently produces dead code
+  - The function was fully written (67 lines) but unreachable; `scripts/translate_articles.py` referenced it
+---

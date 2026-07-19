@@ -509,6 +509,7 @@ def maintenance_rebuild():
         "stored": total_stored,
         "message": f"Rebuilt database: {total_stored} articles from {total_collected} collected"
     }
+@app.post("/api/reanalyze")
 def reanalyze_all(limit: int = 100, offset: int = 0):
     """Re-analyze existing articles with LLM to translate titles to English."""
     from .analyzer import llm_analyze_article, get_client, llm_call, get_last_llm_error
