@@ -273,6 +273,7 @@ def stats():
 class ArticleUpdate(BaseModel):
     title: str | None = None
     summary: str | None = None
+    translated_title: str | None = None
 
 @app.patch("/api/articles/{article_id}")
 def update_article(article_id: int, update: ArticleUpdate):
@@ -289,6 +290,9 @@ def update_article(article_id: int, update: ArticleUpdate):
         if update.summary is not None:
             fields.append("summary = ?")
             params.append(update.summary)
+        if update.translated_title is not None:
+            fields.append("translated_title = ?")
+            params.append(update.translated_title)
         if not fields:
             return {"status": "no_changes"}
         params.append(article_id)
