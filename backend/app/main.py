@@ -349,6 +349,61 @@ def weekly_summary():
     return {"week_start": week_ago, "total": len(recent), "regions": by_region}
 
 
+@app.get("/api/weekly/report")
+def weekly_report():
+    """Markdown report: weekly stats + top articles per region."""
+    from datetime import datetime, timedelta
+    from app.sources import CATEGORY_NAMES
+    REGION_ORDER = ["korea","uae","southeast_asia","japan","australia","taiwan","africa","brazil","mexico"]
+    week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    articles = get_articles(limit=500, min_relevance=0)
+    recent = [a for a in articles if a.get("collected_at", "")[:10] >= week_ago]
+    if not recent:
+        return {"report": "No articles collected this week.", "total": 0}
+
+    by_region = {}
+    for a in recent:
+        r = a["region"]
+        if r not in by_region:
+            by_region[r] = {"count": 0, "articles": [], "cats": {}}
+        by_region[r]["count"] += 1
+        by_region[r]["articles"].append(a)
+        cat = a.get("category", "other")
+        by_region[r]["cats"][cat] = by_region[r]["cats"].get(cat, 0) + 1
+    for r in by_region:
+        by_region[r]["articles"].sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+
+    lines = [f"# 📰 EV Pulse — Weekly Briefing", f"**Week of {week_ago}** — {len(recent)} articles across {len(by_region)} regions", ""]
+    lines.append("## 🔥 Market Activity")
+    for region in [r for r in REGION_ORDER if r in by_region]:
+        rd = by_region[region]
+        flag = {"korea":"🇰🇷","uae":"🇦🇪","southeast_asia":"🌏","japan":"🇯🇵","australia":"🇦🇺","taiwan":"🇹🇼","africa":"🌍","brazil":"🇧🇷","mexico":"🇲🇽"}.get(region,"")
+        lines.append(f"- {flag} **{region.replace('_',' ').title()}**: {rd['count']} articles")
+    lines.append("")
+    lines.append("## 📊 Category Breakdown")
+    all_cats = {}
+    for rd in by_region.values():
+        for cat, n in rd["cats"].items():
+            all_cats[cat] = all_cats.get(cat, 0) + n
+    for cat in sorted(all_cats, key=all_cats.get, reverse=True):
+        name = CATEGORY_NAMES.get(cat, cat)
+        lines.append(f"- {name}: {all_cats[cat]}")
+    lines.append("")
+    for region in [r for r in REGION_ORDER if r in by_region]:
+        rd = by_region[region]
+        flag = {"korea":"🇰🇷","uae":"🇦🇪","southeast_asia":"🌏","japan":"🇯🇵","australia":"🇦🇺","taiwan":"🇹🇼","africa":"🌍","brazil":"🇧🇷","mexico":"🇲🇽"}.get(region,"")
+        name = {"korea":"South Korea","uae":"UAE / Middle East","southeast_asia":"SE Asia","japan":"Japan","australia":"Australia","taiwan":"Taiwan","africa":"Africa","brazil":"Brazil","mexico":"Mexico"}.get(region, region)
+        lines.append(f"## {flag} {name} ({rd['count']})")
+        for a in rd["articles"][:3]:
+            title = a.get("translated_title") or a["title"]
+            score = a.get("relevance_score", 0)
+            lines.append(f"- **{title[:100]}** [{score:.0f}]")
+            lines.append(f"  [{a['source']}]({a['url']})")
+        lines.append("")
+
+    return {"report": "\n".join(lines), "total": len(recent)}
+
+
 # ─── Wiki Graph (Obsidian-style) ───────────────────────
 
 @app.get("/api/graph")

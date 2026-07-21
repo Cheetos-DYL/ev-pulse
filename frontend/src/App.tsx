@@ -1081,33 +1081,23 @@ function RegionsPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => 
    ════════════════════════════════════════════════ */
 
 function WeeklyPage() {
-  const [data, setData] = useState<{ week_start: string; total: number; regions: Record<string, { count: number; articles: Article[] }> } | null>(null);
+  const [data, setData] = useState<{ report: string; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { api.weekly().then(d => { setData(d); setLoading(false); }); }, []);
+  useEffect(() => { fetchJSON<{ report: string; total: number }>('/weekly/report').then(d => { setData(d); setLoading(false); }); }, []);
 
-  if (loading) return <div className="loading"><div className="spinner" /> Loading weekly briefing...</div>;
+  if (loading) return <div className="loading"><div className="spinner" /> Generating weekly briefing...</div>;
   if (!data || data.total === 0) return <div className="empty-state"><div className="empty-state-icon">📭</div><div className="empty-state-text">No articles this week.</div></div>;
-
-  const sorted = Object.entries(data.regions).sort(([,a], [,b]) => b.count - a.count);
 
   return (
     <div>
       <div className="page-header-row">
         <div>
           <h1 className="page-title">Weekly Briefing</h1>
-          <p className="page-subtitle">Week of {data.week_start} — {data.total} articles across {sorted.length} regions</p>
+          <p className="page-subtitle">{data.total} articles this week</p>
         </div>
       </div>
-      {sorted.map(([region, rdata]) => (
-        <div key={region} style={{ marginBottom: 32 }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: 18 }}>
-            {REGION_META[region]?.flag} {REGION_META[region]?.name || region}
-            <span style={{ color: 'var(--color-ink-muted)', fontSize: 14, marginLeft: 8 }}>{rdata.count} articles</span>
-          </h3>
-          {rdata.articles.map(a => <ArticleCard key={a.id} article={a} />)}
-        </div>
-      ))}
+      <div className="card" dangerouslySetInnerHTML={{ __html: renderMarkdown(data.report) }} />
     </div>
   );
 }
