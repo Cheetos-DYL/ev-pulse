@@ -3,6 +3,7 @@ const API_BASE = '/api';
 export interface Article {
   id: number;
   title: string;
+  translated_title: string | null;
   url: string;
   source: string;
   region: string;

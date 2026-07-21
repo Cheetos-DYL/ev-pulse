@@ -4,7 +4,7 @@ import type { Article, Stats, Report, Trend, ComparisonResult, TimelineEntry } f
 import * as d3 from 'd3';
 import './index.css';
 
-type Page = 'home' | 'articles' | 'reports' | 'compare' | 'regions' | 'graph' | 'region-detail' | 'report-detail';
+type Page = 'home' | 'articles' | 'reports' | 'compare' | 'regions' | 'graph' | 'region-detail' | 'report-detail' | 'weekly';
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -102,6 +102,7 @@ export default function App() {
         {page === 'graph' && <GraphPage onNavigate={navigate} />}
         {page === 'regions' && <RegionsPage onNavigate={navigate} />}
         {page === 'region-detail' && <RegionDetailPage regionKey={regionKey} />}
+        {page === 'weekly' && <WeeklyPage />}
       </div>
 
       <footer className="footer">
@@ -159,7 +160,8 @@ function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => voi
 
       {/* Weekly Summary */}
       {weekly && weekly.total > 0 && (
-        <div className="card card-accent" style={{ borderLeftColor: 'var(--color-accent)' }}>
+        <div className="card card-accent" style={{ borderLeftColor: 'var(--color-accent)', cursor: 'pointer' }}
+             onClick={() => onNavigate('weekly')}>
           <div className="card-header">
             <span className="card-title">📰 This Week in EV Charging</span>
             <span className="badge badge-region">{weekly.total} articles</span>
@@ -238,7 +240,7 @@ function ArticleCard({ article }: { article: Article }) {
     <div className="card">
       <div className="card-header">
         <a href={article.url} target="_blank" rel="noopener noreferrer" className="card-title">
-          {article.title}
+          {article.translated_title || article.title}
         </a>
         <span className={`badge-score badge ${scoreClass}`}>
           {article.relevance_score.toFixed(1)}
@@ -1077,6 +1079,39 @@ function RegionsPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => 
 /* ════════════════════════════════════════════════
    Region Detail
    ════════════════════════════════════════════════ */
+
+function WeeklyPage() {
+  const [data, setData] = useState<{ week_start: string; total: number; regions: Record<string, { count: number; articles: Article[] }> } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { api.weekly().then(d => { setData(d); setLoading(false); }); }, []);
+
+  if (loading) return <div className="loading"><div className="spinner" /> Loading weekly briefing...</div>;
+  if (!data || data.total === 0) return <div className="empty-state"><div className="empty-state-icon">📭</div><div className="empty-state-text">No articles this week.</div></div>;
+
+  const sorted = Object.entries(data.regions).sort(([,a], [,b]) => b.count - a.count);
+
+  return (
+    <div>
+      <div className="page-header-row">
+        <div>
+          <h1 className="page-title">Weekly Briefing</h1>
+          <p className="page-subtitle">Week of {data.week_start} — {data.total} articles across {sorted.length} regions</p>
+        </div>
+      </div>
+      {sorted.map(([region, rdata]) => (
+        <div key={region} style={{ marginBottom: 32 }}>
+          <h3 style={{ margin: '0 0 12px 0', fontSize: 18 }}>
+            {REGION_META[region]?.flag} {REGION_META[region]?.name || region}
+            <span style={{ color: 'var(--color-ink-muted)', fontSize: 14, marginLeft: 8 }}>{rdata.count} articles</span>
+          </h3>
+          {rdata.articles.map(a => <ArticleCard key={a.id} article={a} />)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 
 function RegionDetailPage({ regionKey }: { regionKey: string }) {
   const [articles, setArticles] = useState<Article[]>([]);
