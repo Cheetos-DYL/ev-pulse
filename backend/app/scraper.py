@@ -24,17 +24,27 @@ def _is_ev_related(title: str, summary: str, language: str = "en") -> bool:
         "en": ["ev charging", "electric vehicle", "charging station", "charging network",
                "fast charging", "ev infrastructure", "charging tariff", "charging point",
                "v2g", "ev policy", "ev subsidy", "charging hub", "charging standard",
-               "ultra-fast", "supercharger", "ev adoption", "ev market"],
+               "ultra-fast", "supercharger", "ev adoption", "ev market", "ev sales",
+               "charger install", "charging pile", "public charging"],
         "ko": ["전기차 충전", "충전소", "전기자동차", "충전 인프라", "급속 충전",
-               "ev 충전", "전기차 보조금", "충전기 설치"],
+               "ev 충전", "전기차 보조금", "충전기 설치", "전기차 충전소",
+               "전기차 충전기", "전기차 보급", "완속 충전", "초급속",
+               "충전 요금", "전기차 시장", "충전 사업"],
         "ja": ["EV充電", "充電スタンド", "急速充電", "充電インフラ", "充電ネットワーク",
-               "電気自動車充電", "スーパーチャージャー"],
-        "zh": ["電動車充電", "充電站", "充電樁", "充電基礎設施", "快速充電"],
+               "電気自動車充電", "スーパーチャージャー", "充電器", "電気自動車",
+               "充電設備", "充電スポット", "普通充電", "EV販売"],
+        "zh": ["電動車充電", "充電站", "充電樁", "充電基礎設施", "快速充電",
+               "電動車", "充電器", "充電網絡", "電動汽車", "充電服务"],
         "pt": ["carregamento elétrico", "estação de carga", "carro elétrico", "veículo elétrico",
-               "recarga elétrica", "mobilidade elétrica", "infraestrutura de carga"],
+               "recarga elétrica", "mobilidade elétrica", "infraestrutura de carga",
+               "carregador elétrico", "eletroposto", "recarga rápida", "ponto de recarga",
+               "posto de recarga", "veículo híbrido plug-in"],
         "es": ["estación de carga", "vehículo eléctrico", "carga eléctrica", "punto de recarga",
-               "movilidad eléctrica", "infraestructura de carga", "coche eléctrico"],
-        "ar": ["شحن السيارات", "محطة شحن", "سيارة كهربائية", "شحن كهربائي"],
+               "movilidad eléctrica", "infraestructura de carga", "coche eléctrico",
+               "electrolinera", "cargador eléctrico", "recarga rápida",
+               "auto eléctrico", "punto de carga"],
+        "ar": ["شحن السيارات", "محطة شحن", "سيارة كهربائية", "شحن كهربائي",
+               "شاحن سيارة", "بنية تحتية للشحن", "شحن سريع"],
     }
     
     lang_code = language if language in strong_ev else "en"
@@ -149,11 +159,9 @@ def collect_from_rss(region: str) -> list[dict]:
             a['region'] = region
             a['source'] = f"Google News ({region_lang})"
             articles.append(a)
-        else:
-            logger.debug(f"Skipping non-EV Google News article: {a['title'][:60]}")
     
     # 3. Fallback: English Google News query for broader coverage
-    if google_articles:  # Only if local-lang query got hits
+    if len(google_articles) < 5:
         en_query = f"{region} EV charging electric vehicle"
         en_articles = _get_google_news_rss(en_query, "en")
         for a in en_articles:
@@ -161,8 +169,6 @@ def collect_from_rss(region: str) -> list[dict]:
                 a['region'] = region
                 a['source'] = f"Google News"
                 articles.append(a)
-            else:
-                logger.debug(f"Skipping non-EV English Google article: {a['title'][:60]}")
     
     return articles
 

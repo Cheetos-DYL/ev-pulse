@@ -15,7 +15,7 @@ SOURCES = {
         "feeds": [
             # Korean-language sources
             {"url": "https://www.yna.co.kr/rss/industry.xml", "name": "연합뉴스 산업", "language": "ko", "confidence": "stable"},
-            {"url": "https://www.hankyung.com/feed/all-news", "name": "한국경제", "language": "ko", "confidence": "stable"},
+            # 한국경제 RSS returns 403 — blocked
             {"url": "https://www.hani.co.kr/rss/", "name": "한겨레", "language": "ko", "confidence": "stable"},
             {"url": "https://rss.etnews.com/Section901.xml", "name": "전자신문", "language": "ko", "confidence": "stable"},
         ],
@@ -56,7 +56,8 @@ SOURCES = {
             {"url": "https://www.straitstimes.com/rss/asia.xml", "name": "Straits Times", "language": "en", "confidence": "stable"},
             {"url": "https://www.bangkokpost.com/rss/data/general.xml", "name": "Bangkok Post", "language": "en", "confidence": "stable"},
             {"url": "https://www.thestar.com.my/rss/News", "name": "The Star MY", "language": "en", "confidence": "stable"},
-            {"url": "https://rss.vnexpress.net/rss/tin-moi.xml", "name": "VnExpress", "language": "vi", "confidence": "stable"},
+            # VnExpress RSS DNS failure
+            # {"url": "https://rss.vnexpress.net/rss/tin-moi.xml", "name": "VnExpress", "language": "vi", "confidence": "stable"},
         ],
         "google_news_query": "pengisian daya EV mobil listrik ASEAN xe điện sạc",
         "geo_keywords": [
@@ -107,8 +108,9 @@ SOURCES = {
         "language": "zh",
         "feeds": [
             # Chinese-language sources
-            {"url": "https://udn.com/rss/news/life/transport", "name": "聯合新聞網", "language": "zh", "confidence": "stable"},
-            {"url": "https://www.cna.com.tw/rss/news.xml", "name": "中央社", "language": "zh", "confidence": "stable"},
+            # 聯合新聞網 302/XML parse error, 中央社 404 — both broken
+            # {"url": "https://udn.com/rss/news/life/transport", "name": "聯合新聞網", "language": "zh", "confidence": "stable"},
+            # {"url": "https://www.cna.com.tw/rss/news.xml", "name": "中央社", "language": "zh", "confidence": "stable"},
             # English source
             {"url": "https://www.taipeitimes.com/xml/rss.xml", "name": "Taipei Times", "language": "en", "confidence": "stable"},
         ],

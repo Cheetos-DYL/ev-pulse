@@ -27,36 +27,27 @@ Started: $(date)
   - Category-specific fallback text is much more readable than generic "Key development"
 ---
 
-## [2026-07-05] - US-006: Fix frontend category filters + wire graph toggles
-- Fixed ArticlesPage category filter buttons: replaced hardcoded old category names ('service', 'trend', 'policy') with dynamic rendering from CATEGORIES map, matching actual backend categories
-- Fixed GraphPage toggles: "Cats" and "Links" checkboxes now have onChange handlers and actually filter category nodes / article↔article backlinks from the graph
-- Files changed: frontend/src/App.tsx
-- **Learnings:**
-  - The category filter buttons were still using pre-refactor values ('service', 'trend', 'policy') — must use Object.entries(CATEGORIES) for dynamic rendering
-  - Graph toggles had checked state + state vars but no onChange handlers, making them purely cosmetic
-  - filterRenderData pattern (useMemo on top of localGraph || graphData) cleanly layers toggle filters without redundant API calls
----
+## [2026-07-01 20:50 BST] - US-002
+- Updated CATEGORIES map in App.tsx with 6 new categories
+- Updated badge CSS classes in index.css with new category colors
+- Built frontend successfully
+- **Learnings:** Category CSS class names must match the exact backend category key (underscore-separated)
 
-## [2026-07-12] - Search bar: frontend keyword search for ArticlesPage
-- Added search input with 400ms debounce to ArticlesPage
-- Wired to existing `/api/articles/search` endpoint (previously had no frontend UI)
-- Search integrates with existing region/category/relevance filters
-- CSV export now includes search query when present
-- Context-aware empty state shows search terms when no results found
-- Added `.search-bar`, `.search-input`, `.search-clear` CSS styles matching editorial design
-- Files changed: frontend/src/App.tsx, frontend/src/index.css
-- **Learnings:**
-  - The search endpoint existed but had no frontend input — endpoint-first design is good but needs UI parity check
-  - Debounce pattern (400ms) prevents excessive API calls during typing
-  - Need to clear `debouncedQuery` too when clearing search input, not just `searchQuery`
----
+## [2026-07-01 20:52 BST] - US-003
+- Added 4096-char truncation to _format_digest in ev-pulse-weekly.py
+- Drops lowest-priority market sections with truncation note: "... and N more market section(s)"
+- **Learnings:** No-agent mode sends entire stdout as one Telegram message, so truncation is needed instead of splitting
 
-## [2026-07-19] - Weekly maintenance: Fix missing route on reanalyze endpoint
-- `reanalyze_all()` function in main.py had no `@app.post` decorator — was dead code despite being fully implemented
-- Added `@app.post("/api/reanalyze")` to register the reanalyze endpoint
-- Route referenced by `scripts/translate_articles.py` but previously returned 404
-- Files changed: backend/app/main.py (1 line added)
-- **Learnings:**
-  - Always check that function definitions have their route decorators — a missing decorator silently produces dead code
-  - The function was fully written (67 lines) but unreachable; `scripts/translate_articles.py` referenced it
+## [2026-07-01 20:56 BST] - US-004
+- Added search_articles() function in db.py with LIKE-based full-text search
+- Added GET /api/articles/search endpoint in main.py (query, region, category, date range, min score)
+- Added search bar to ArticlesPage in App.tsx with 300ms debounce
+- Added api.search() call to frontend api.ts
+- Verified search works locally: "EV charging" → 5 results, "Korea" → 5 results
+
+## [2026-07-01 21:00 BST] - US-005
+- Exported 489 articles, 2 reports, 18 metrics to seed_data.json
+- Committed and pushed all 15 changed files to GitHub (master branch)
+- Render deploy triggered automatically
+- **Learnings:** The default branch is "master" not "main" for this repo
 ---
