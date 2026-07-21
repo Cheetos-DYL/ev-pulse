@@ -351,57 +351,105 @@ def weekly_summary():
 
 @app.get("/api/weekly/report")
 def weekly_report():
-    """Markdown report: weekly stats + top articles per region."""
+    """LLM-generated weekly briefing: synthesized insights from collected articles."""
     from datetime import datetime, timedelta
-    from app.sources import CATEGORY_NAMES
-    REGION_ORDER = ["korea","uae","southeast_asia","japan","australia","taiwan","africa","brazil","mexico"]
+
+    REGION_NAMES = {"korea":"South Korea","uae":"UAE/Middle East","southeast_asia":"SE Asia",
+                    "japan":"Japan","australia":"Australia","taiwan":"Taiwan",
+                    "africa":"Africa","brazil":"Brazil","mexico":"Mexico"}
     week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
     articles = get_articles(limit=500, min_relevance=0)
     recent = [a for a in articles if a.get("collected_at", "")[:10] >= week_ago]
     if not recent:
         return {"report": "No articles collected this week.", "total": 0}
 
+    # Build article summaries per region
     by_region = {}
     for a in recent:
         r = a["region"]
         if r not in by_region:
-            by_region[r] = {"count": 0, "articles": [], "cats": {}}
-        by_region[r]["count"] += 1
-        by_region[r]["articles"].append(a)
+            by_region[r] = []
+        title = a.get("translated_title") or a["title"]
         cat = a.get("category", "other")
-        by_region[r]["cats"][cat] = by_region[r]["cats"].get(cat, 0) + 1
-    for r in by_region:
-        by_region[r]["articles"].sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+        why = a.get("why_it_matters", "")
+        by_region[r].append(f"  [{cat}] {title[:120]}" + (f" — {why}" if why else ""))
 
-    lines = [f"# 📰 EV Pulse — Weekly Briefing", f"**Week of {week_ago}** — {len(recent)} articles across {len(by_region)} regions", ""]
-    lines.append("## 🔥 Market Activity")
-    for region in [r for r in REGION_ORDER if r in by_region]:
-        rd = by_region[region]
-        flag = {"korea":"🇰🇷","uae":"🇦🇪","southeast_asia":"🌏","japan":"🇯🇵","australia":"🇦🇺","taiwan":"🇹🇼","africa":"🌍","brazil":"🇧🇷","mexico":"🇲🇽"}.get(region,"")
-        lines.append(f"- {flag} **{region.replace('_',' ').title()}**: {rd['count']} articles")
-    lines.append("")
-    lines.append("## 📊 Category Breakdown")
-    all_cats = {}
-    for rd in by_region.values():
-        for cat, n in rd["cats"].items():
-            all_cats[cat] = all_cats.get(cat, 0) + n
-    for cat in sorted(all_cats, key=all_cats.get, reverse=True):
-        name = CATEGORY_NAMES.get(cat, cat)
-        lines.append(f"- {name}: {all_cats[cat]}")
-    lines.append("")
-    for region in [r for r in REGION_ORDER if r in by_region]:
-        rd = by_region[region]
-        flag = {"korea":"🇰🇷","uae":"🇦🇪","southeast_asia":"🌏","japan":"🇯🇵","australia":"🇦🇺","taiwan":"🇹🇼","africa":"🌍","brazil":"🇧🇷","mexico":"🇲🇽"}.get(region,"")
-        name = {"korea":"South Korea","uae":"UAE / Middle East","southeast_asia":"SE Asia","japan":"Japan","australia":"Australia","taiwan":"Taiwan","africa":"Africa","brazil":"Brazil","mexico":"Mexico"}.get(region, region)
-        lines.append(f"## {flag} {name} ({rd['count']})")
-        for a in rd["articles"][:3]:
-            title = a.get("translated_title") or a["title"]
-            score = a.get("relevance_score", 0)
-            lines.append(f"- **{title[:100]}** [{score:.0f}]")
-            lines.append(f"  [{a['source']}]({a['url']})")
-        lines.append("")
+    # Build prompt
+    region_blocks = []
+    for r in ["korea","uae","southeast_asia","japan","australia","taiwan","africa","brazil","mexico"]:
+        if r in by_region:
+            name = REGION_NAMES.get(r, r)
+            region_blocks.append(f"## {name} ({len(by_region[r])} articles)\n" + "\n".join(by_region[r][:8]))
 
-    return {"report": "\n".join(lines), "total": len(recent)}
+    articles_text = "\n\n".join(region_blocks)
+    prompt = f"""You are an EV charging market analyst. Write a weekly executive briefing in Markdown based on these articles collected from {len(recent)} news items across {len(by_region)} emerging markets.
+
+Structure your report as:
+
+# 📰 EV Pulse — Weekly Briefing
+**Week of {week_ago}** — {len(recent)} articles across {len(by_region)} regions
+
+## 🔥 Key Developments This Week
+(3-5 most important things that happened, 2-3 sentences each, focus on what's actionable)
+
+## 🌍 Regional Highlights
+(one paragraph per region with activity, 2-3 sentences each, mention specific companies/numbers)
+
+## 📊 Trends & Signals
+(broader patterns across regions: policy shifts, investment trends, technology adoption, 3-4 observations)
+
+## ⚡ What to Watch
+(2-3 upcoming things to monitor based on the signals in these articles)
+
+Rules:
+- Be concrete: mention specific companies, dollar amounts, policy names
+- Flag contradictions or tensions (e.g. "Korea raises rates while UAE subsidizes")
+- If a region has only market-report/statista type articles, say so briefly
+- No fluff, no "the EV market is growing" — be specific about what changed
+- Total report: 500-800 words
+
+Articles:
+{articles_text}"""
+
+    report = _llm(prompt, max_tokens=1200)
+    if not report:
+        # LLM fallback: plain stats
+        lines = [f"# 📰 EV Pulse — Weekly Briefing", f"**Week of {week_ago}** — {len(recent)} articles across {len(by_region)} regions", "",
+                 "## 🔥 Market Activity"]
+        for r in ["korea","uae","southeast_asia","japan","australia","taiwan","africa","brazil","mexico"]:
+            if r in by_region:
+                name = REGION_NAMES.get(r, r)
+                lines.append(f"- {name}: {len(by_region[r])} articles")
+        report = "\n".join(lines)
+
+    return {"report": report, "total": len(recent)}
+
+
+def _llm(prompt: str, max_tokens: int = 600) -> str:
+    """Call Kimi-k3 for text generation. Returns empty string on failure."""
+    import urllib.request, json as _json
+    base = os.environ.get("LLM_BASE_URL", "https://api.moonshot.ai/v1")
+    key = os.environ.get("LLM_API_KEY", os.environ.get("KIMI_API_KEY", ""))
+    model = os.environ.get("LLM_MODEL", "kimi-k3")
+    if not key:
+        return ""
+    data = _json.dumps({
+        "model": model, "temperature": 1,
+        "messages": [
+            {"role": "system", "content": "You are an EV charging market analyst. Write concise, specific executive briefings."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": max_tokens
+    }).encode()
+    try:
+        req = urllib.request.Request(f"{base}/chat/completions", data=data, headers={
+            "Content-Type": "application/json", "Authorization": f"Bearer {key}"
+        })
+        resp = _json.loads(urllib.request.urlopen(req, timeout=90).read())
+        return resp["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        logger.error(f"LLM call failed: {e}")
+        return ""
 
 
 # ─── Wiki Graph (Obsidian-style) ───────────────────────
