@@ -160,6 +160,9 @@ export const api = {
   weekly: () =>
     fetchJSON<{ week_start: string; total: number; regions: Record<string, { count: number; articles: Article[] }> }>('/weekly'),
 
+  weeklyReport: () =>
+    fetchJSON<{ report: string; total: number }>('/weekly/report'),
+
   compare: (month_a: string, month_b?: string) =>
     fetchJSON<ComparisonResult>(`/trends/compare?month_a=${month_a}${month_b ? `&month_b=${month_b}` : ''}`),
 };

@@ -1084,7 +1084,7 @@ function WeeklyPage() {
   const [data, setData] = useState<{ report: string; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { fetchJSON<{ report: string; total: number }>('/weekly/report').then(d => { setData(d); setLoading(false); }); }, []);
+  useEffect(() => { api.weeklyReport().then(d => { setData(d); setLoading(false); }); }, []);
 
   if (loading) return <div className="loading"><div className="spinner" /> Generating weekly briefing...</div>;
   if (!data || data.total === 0) return <div className="empty-state"><div className="empty-state-icon">📭</div><div className="empty-state-text">No articles this week.</div></div>;
