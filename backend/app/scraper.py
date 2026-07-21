@@ -160,16 +160,6 @@ def collect_from_rss(region: str) -> list[dict]:
             a['source'] = f"Google News ({region_lang})"
             articles.append(a)
     
-    # 3. Fallback: English Google News query for broader coverage
-    if len(google_articles) < 5:
-        en_query = f"{region} EV charging electric vehicle"
-        en_articles = _get_google_news_rss(en_query, "en")
-        for a in en_articles:
-            if _is_ev_related(a['title'], a.get('summary', ''), 'en'):
-                a['region'] = region
-                a['source'] = f"Google News"
-                articles.append(a)
-    
     return articles
 
 

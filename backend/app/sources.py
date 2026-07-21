@@ -40,7 +40,7 @@ SOURCES = {
             {"url": "https://gulfnews.com/rss/business", "name": "Gulf News", "language": "en", "confidence": "stable"},
             {"url": "https://www.khaleejtimes.com/rss", "name": "Khaleej Times", "language": "en", "confidence": "stable"},
         ],
-        "google_news_query": "EV charging UAE Middle East شحن السيارات الكهربائية",
+        "google_news_query": "شحن السيارات الكهربائية الإمارات",
         "geo_keywords": [
             "uae", "dubai", "abu dhabi", "saudi", "riyadh", "qatar", "doha",
             "gcc", "middle east", "شحن", "سيارة كهربائية",
@@ -59,7 +59,7 @@ SOURCES = {
             # VnExpress RSS DNS failure
             # {"url": "https://rss.vnexpress.net/rss/tin-moi.xml", "name": "VnExpress", "language": "vi", "confidence": "stable"},
         ],
-        "google_news_query": "pengisian daya EV mobil listrik ASEAN xe điện sạc",
+        "google_news_query": "EV charging electric vehicle ASEAN Singapore Thailand Indonesia Vietnam",
         "geo_keywords": [
             "singapore", "thailand", "indonesia", "vietnam", "malaysia",
             "asean", "sea ev", "mobil listrik", "xe điện", "ชาร์จ EV",
