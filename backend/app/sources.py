@@ -51,6 +51,7 @@ SOURCES = {
     "southeast_asia": {
         "name": "Southeast Asia",
         "language": "en",
+        "country": "SG",
         "feeds": [
             {"url": "https://www.channelnewsasia.com/rss", "name": "CNA", "language": "en", "confidence": "stable"},
             {"url": "https://www.straitstimes.com/rss/asia.xml", "name": "Straits Times", "language": "en", "confidence": "stable"},
@@ -70,6 +71,7 @@ SOURCES = {
     "japan": {
         "name": "Japan",
         "language": "ja",
+        "country": "JP",
         "feeds": [
             # Japanese-language sources
             {"url": "https://response.jp/rss20/index.rdf", "name": "レスポンス", "language": "ja", "confidence": "stable"},
@@ -90,6 +92,7 @@ SOURCES = {
     "australia": {
         "name": "Australia",
         "language": "en",
+        "country": "AU",
         "feeds": [
             {"url": "https://www.abc.net.au/news/feed/51120/rss.xml", "name": "ABC News AU", "language": "en", "confidence": "stable"},
             {"url": "https://www.drive.com.au/feed/", "name": "Drive.com.au", "language": "en", "confidence": "stable"},
@@ -106,6 +109,7 @@ SOURCES = {
     "taiwan": {
         "name": "Taiwan",
         "language": "zh",
+        "country": "TW",
         "feeds": [
             # Chinese-language sources
             # 聯合新聞網 302/XML parse error, 中央社 404 — both broken
@@ -125,6 +129,7 @@ SOURCES = {
     "africa": {
         "name": "Africa / South Africa",
         "language": "en",
+        "country": "ZA",
         "feeds": [
             {"url": "https://www.news24.com/rss/fin24", "name": "News24 Fin24", "language": "en", "confidence": "stable"},
             {"url": "https://www.businesslive.co.za/rss/?publication=bd", "name": "Business Day SA", "language": "en", "confidence": "stable"},
@@ -140,6 +145,7 @@ SOURCES = {
     "brazil": {
         "name": "Brazil",
         "language": "pt",
+        "country": "BR",
         "feeds": [
             # Portuguese-language sources
             {"url": "https://g1.globo.com/rss/g1/carros", "name": "G1 Carros", "language": "pt", "confidence": "stable"},
@@ -158,6 +164,7 @@ SOURCES = {
     "mexico": {
         "name": "Mexico / Central America",
         "language": "es",
+        "country": "MX",
         "feeds": [
             # Spanish-language sources
             {"url": "https://expansion.mx/rss", "name": "Expansión", "language": "es", "confidence": "stable"},

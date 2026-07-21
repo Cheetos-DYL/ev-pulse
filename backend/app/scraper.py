@@ -116,6 +116,7 @@ def collect_from_rss(region: str) -> list[dict]:
     source_config = SOURCES.get(region, {})
     feeds = source_config.get("feeds", [])
     region_lang = source_config.get("language", "en")
+    region_country = source_config.get("country", "US")
     
     # 1. Try region-specific RSS feeds (local-language + English)
     for feed_info in feeds:
@@ -153,7 +154,7 @@ def collect_from_rss(region: str) -> list[dict]:
     
     # 2. Google News RSS with region-specific query (local language)
     query = source_config.get("google_news_query", f"{region} EV charging")
-    google_articles = _get_google_news_rss(query, region_lang)
+    google_articles = _get_google_news_rss(query, region_lang, region_country)
     for a in google_articles:
         if _is_ev_related(a['title'], a.get('summary', ''), a.get('language', 'en')):
             a['region'] = region
