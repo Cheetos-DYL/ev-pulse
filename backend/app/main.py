@@ -324,6 +324,27 @@ def regions():
     return {"regions": {k: v["name"] for k, v in SOURCES.items()}}
 
 
+@app.get("/api/weekly")
+def weekly_summary():
+    """Articles from last 7 days, grouped by region."""
+    from datetime import datetime, timedelta
+    week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    articles = get_articles(limit=500, min_relevance=0)
+    recent = [a for a in articles if a.get("collected_at", "")[:10] >= week_ago]
+    by_region = {}
+    for a in recent:
+        r = a["region"]
+        if r not in by_region:
+            by_region[r] = {"count": 0, "articles": []}
+        by_region[r]["count"] += 1
+        by_region[r]["articles"].append(a)
+    # Sort each region by score, keep top 5
+    for r in by_region:
+        by_region[r]["articles"].sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+        by_region[r]["articles"] = by_region[r]["articles"][:5]
+    return {"week_start": week_ago, "total": len(recent), "regions": by_region}
+
+
 # ─── Wiki Graph (Obsidian-style) ───────────────────────
 
 @app.get("/api/graph")

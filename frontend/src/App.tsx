@@ -119,12 +119,13 @@ export default function App() {
 function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => void }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [latestArticles, setLatestArticles] = useState<Article[]>([]);
+  const [weekly, setWeekly] = useState<{ total: number; regions: Record<string, { count: number }> } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api.stats().then(s => setStats(s));
-    api.articles({ limit: 6, min_relevance: 5 }).then(a => setLatestArticles(a.articles))
-      .finally(() => setLoading(false));
+    api.articles({ limit: 6, min_relevance: 5 }).then(a => setLatestArticles(a.articles));
+    api.weekly().then(w => setWeekly(w)).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="loading"><div className="spinner" /> Loading intelligence...</div>;
@@ -155,6 +156,29 @@ function HomePage({ onNavigate }: { onNavigate: (p: Page, param?: string) => voi
           </div>
         )}
       </div>
+
+      {/* Weekly Summary */}
+      {weekly && weekly.total > 0 && (
+        <div className="card card-accent" style={{ borderLeftColor: 'var(--color-accent)' }}>
+          <div className="card-header">
+            <span className="card-title">📰 This Week in EV Charging</span>
+            <span className="badge badge-region">{weekly.total} articles</span>
+          </div>
+          <div className="card-summary">
+            {Object.entries(weekly.regions)
+              .sort(([, a], [, b]) => b.count - a.count)
+              .slice(0, 6)
+              .map(([region, data]) => {
+                const meta = REGION_META[region];
+                return (
+                  <span key={region} style={{ marginRight: 12, whiteSpace: 'nowrap' }}>
+                    {meta?.flag || '•'} {data.count}
+                  </span>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* Latest Report — Featured card */}
       {stats?.latest_report && (
