@@ -22,6 +22,11 @@ function useTheme() {
   return { theme, toggle };
 }
 
+const NAV_LABELS: Record<string, string> = {
+  home: 'Home', articles: 'Articles', reports: 'Reports',
+  compare: 'Compare', graph: 'Graph', regions: 'Regions',
+};
+
 const CATEGORIES: Record<string, string> = {
   government_policy: 'Policy',
   ma_partnership: 'M&A',
@@ -74,7 +79,7 @@ export default function App() {
                 className={`nav-link ${page === p ? 'active' : ''}`}
                 onClick={() => navigate(p)}
               >
-                {p === 'home' ? 'Home' : p === 'articles' ? 'Articles' : p === 'reports' ? 'Reports' : p === 'compare' ? 'Compare' : 'Regions'}
+                {NAV_LABELS[p] || p}
               </button>
             ))}
           </div>
