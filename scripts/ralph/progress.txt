@@ -62,3 +62,12 @@ Started: $(date)
   - DB column → API response → TS interface → render is a 4-hop chain; the interface hop was missing, hiding translated_title from all frontend code
   - Local dev DB had 0/138 translated_title but production reanalyze flow fills them; `||` fallback keeps both correct
 ---
+
+## [2026-08-02] - Fix /api/articles/search shadowed by /api/articles/{article_id}
+- **Bug:** `/api/articles/search` was registered AFTER `/api/articles/{article_id}`. Starlette matches routes in registration order, so GET /api/articles/search hit the {article_id} route → 422 "Input should be a valid integer... 'search'". Frontend search bar was broken in production (verified live: 422 before, 200 after).
+- **Fix:** Moved search route above the {article_id} GET route in backend/app/main.py. Added a NOTE comment so future routes don't get shadowed.
+- **Verified:** live curl — search 200 + results, /api/articles/{id} 200, csv 200. py_compile OK, tsc OK, vite build OK.
+- **Learnings:**
+  - FastAPI/Starlette route matching is FIRST-REGISTRATION-WINS on path pattern alone (param type validation happens after match) — static paths like /search or /csv MUST be declared before any /{param} route or they silently 422.
+  - csv route survived only because it happened to be registered earlier. Audit route order whenever adding a static path under a parameterized prefix.
+---

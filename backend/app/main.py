@@ -146,15 +146,9 @@ def export_csv(
     )
 
 
-@app.get("/api/articles/{article_id}")
-def get_article(article_id: int):
-    article = get_article_by_id(article_id)
-    if not article:
-        raise HTTPException(status_code=404, detail="Article not found")
-    return article
-
-
 # ─── Search ────────────────────────────────────────────────
+# NOTE: must be registered BEFORE /api/articles/{article_id} —
+# Starlette matches routes in order and {article_id} would shadow "search".
 
 @app.get("/api/articles/search")
 def search(
@@ -177,6 +171,14 @@ def search(
         limit=limit, offset=offset
     )
     return {"articles": articles, "count": len(articles), "query": q}
+
+
+@app.get("/api/articles/{article_id}")
+def get_article(article_id: int):
+    article = get_article_by_id(article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return article
 
 
 
