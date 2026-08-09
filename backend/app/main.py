@@ -21,7 +21,7 @@ from .db import (
     record_monthly_metrics, seed_articles, seed_reports, seed_metrics,
     search_articles, get_connection, insert_report
 )
-from .scraper import collect_all_regions
+from .scraper import collect_all_regions, collect_from_rss
 from .analyzer import batch_analyze
 from .reporter import generate_monthly_report
 from .newsletter import generate_newsletter_html, get_newsletter_text
@@ -223,7 +223,7 @@ def run_collection_region(region: str, use_llm: bool = True):
     if region not in SOURCES:
         raise HTTPException(status_code=400, detail=f"Unknown region: {region}")
 
-    articles = collect_all_regions().get(region, [])
+    articles = collect_from_rss(region)
     analyzed = batch_analyze(articles, use_llm=use_llm)
     stored = 0
     for article in analyzed:

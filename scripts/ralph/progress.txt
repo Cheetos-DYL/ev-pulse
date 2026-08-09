@@ -71,3 +71,12 @@ Started: $(date)
   - FastAPI/Starlette route matching is FIRST-REGISTRATION-WINS on path pattern alone (param type validation happens after match) — static paths like /search or /csv MUST be declared before any /{param} route or they silently 422.
   - csv route survived only because it happened to be registered earlier. Audit route order whenever adding a static path under a parameterized prefix.
 ---
+
+## [2026-08-09] - Fix /api/collect/{region} collecting all 9 regions
+- **Bug:** `run_collection_region` called `collect_all_regions().get(region, [])` — hit every region's feeds + Google News (9x network I/O) just to keep one region. Slow, and hammered RSS sources on every single-region collect.
+- **Fix:** Use existing `collect_from_rss(region)` from scraper.py — one line. Root cause: endpoint ignored the already-specialized helper.
+- **Verified:** py_compile OK, tsc -b OK, vite build OK. seed_data.json re-exported (no data lost).
+- **Learnings:**
+  - When an endpoint takes a region param, grep the scraper for a single-region helper before calling the all-regions one — the specialized function usually exists.
+  - `collect_from_rss` is the proven primitive (collect_all_regions wraps it per-region), so swapping the call site carries no new risk.
+---
