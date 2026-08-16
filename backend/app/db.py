@@ -141,11 +141,12 @@ def search_articles(query: str, region: str = None, category: str = None,
         conditions = []
         params = []
         
-        # Full-text search across title, summary, source
+        # Full-text search across local-language AND English fields (UI is English-only:
+        # translated_title + why_it_matters are the English text users actually query)
         if query:
-            conditions.append("(title LIKE ? OR summary LIKE ? OR source LIKE ?)")
+            conditions.append("(title LIKE ? OR translated_title LIKE ? OR summary LIKE ? OR why_it_matters LIKE ? OR source LIKE ?)")
             like_q = f"%{query}%"
-            params.extend([like_q, like_q, like_q])
+            params.extend([like_q] * 5)
         
         if region:
             conditions.append("region = ?")

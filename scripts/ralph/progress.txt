@@ -80,3 +80,12 @@ Started: $(date)
   - When an endpoint takes a region param, grep the scraper for a single-region helper before calling the all-regions one — the specialized function usually exists.
   - `collect_from_rss` is the proven primitive (collect_all_regions wraps it per-region), so swapping the call site carries no new risk.
 ---
+
+## [2026-08-16] - Fix search missing English fields (translated_title, why_it_matters)
+- **Bug:** `search_articles()` searched only `title`, `summary`, `source` — all local-language fields. Production fills English `translated_title` + `why_it_matters` via reanalyze, but search couldn't match them. An English-only UI (INTENT.md) could not find articles by English title/summary — violating "Search must find any article within 30 seconds".
+- **Fix:** Added `translated_title LIKE ?` and `why_it_matters LIKE ?` to the full-text WHERE clause in backend/app/db.py. One choke point — all search callers (endpoint + frontend) fixed at once.
+- **Verified:** py_compile OK, tsc -b OK, vite build OK. Functional test on temp DB: English query matches Korean-title article via translated_title AND via why_it_matters; local-language search + region filter still work.
+- **Learnings:**
+  - Search coverage must mirror what the UI displays: UI shows `translated_title || title`, so search must cover both — display and search are two consumers of the same field set.
+  - `export-seed.py` output identical this run (562 articles) — local DB in sync with seed; no seed churn.
+---
