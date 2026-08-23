@@ -89,3 +89,13 @@ Started: $(date)
   - Search coverage must mirror what the UI displays: UI shows `translated_title || title`, so search must cover both — display and search are two consumers of the same field set.
   - `export-seed.py` output identical this run (562 articles) — local DB in sync with seed; no seed churn.
 ---
+
+## [2026-08-23] - Fix CSV export ignoring search query (q param)
+- **Bug:** Frontend CSV Export button sends `q` (search query) to `/api/articles/csv`, but the endpoint had no `q` parameter — the param was silently dropped and search-filtered exports returned the full unfiltered archive (up to 10000 rows). A user searching "Shell" then exporting got every article.
+- **Fix:** Added `q` param to `export_csv` in backend/app/main.py; when present, routes through `search_articles(query=q, ...)` (matches English fields too, sorts by relevance), else falls back to `get_articles`. Frontend already sent `q` — no frontend change needed.
+- Also fixed `Article` interface in frontend/src/api.ts: `tags` was typed `string` but all list/search endpoints return parsed arrays; added `keywords: string[]` and `why_it_matters: string` which were missing entirely.
+- **Verified:** py_compile OK, tsc -b + vite build OK. TestClient check on local DB: q=charging → 50 rows all containing "charging", q=charging&region=korea → 21 rows all korea, nonsense query → 0 rows (was full dump before fix), unfiltered → 562. seed_data.json re-exported, byte-identical (562 articles).
+- **Learnings:**
+  - Frontend/backend param contract drift is silent: the CSV endpoint predates the search feature, so `q` was added to the button but never to the endpoint. When adding a query param to a frontend call, grep the target endpoint for it before shipping.
+  - `search_articles` is the single choke point for all query filtering now (search endpoint + CSV export) — consistent English-field matching for free.
+---

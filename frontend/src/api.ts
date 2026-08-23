@@ -13,7 +13,9 @@ export interface Article {
   content: string | null;
   relevance_score: number;
   category: string;
-  tags: string;
+  tags: string[];
+  keywords: string[];
+  why_it_matters: string;
   published_at: string | null;
   collected_at: string;
   analyzed: number;

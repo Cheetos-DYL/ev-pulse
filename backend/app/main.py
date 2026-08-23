@@ -102,11 +102,17 @@ def export_csv(
     region: str = None,
     category: str = None,
     min_relevance: float = Query(0, ge=0),
+    q: str = None,
     limit: int = Query(10000, le=50000),
 ):
-    """Export articles as CSV download."""
-    articles = get_articles(region=region, category=category,
-                           min_relevance=min_relevance, limit=limit)
+    """Export articles as CSV download. `q` filters by search query (frontend sends it)."""
+    if q:
+        # search_articles matches English fields too; sorts by relevance
+        articles = search_articles(query=q, region=region, category=category,
+                                   min_relevance=min_relevance, limit=limit)
+    else:
+        articles = get_articles(region=region, category=category,
+                               min_relevance=min_relevance, limit=limit)
 
     output = io.StringIO()
     writer = csv.writer(output)
