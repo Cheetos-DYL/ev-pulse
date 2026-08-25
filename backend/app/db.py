@@ -85,8 +85,8 @@ def insert_article(article: dict) -> int | None:
             cursor = conn.execute(
                 """INSERT INTO articles 
                    (title, translated_title, url, source, region, country, language, summary, content,
-                    relevance_score, category, tags, keywords, why_it_matters, published_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    relevance_score, category, tags, keywords, why_it_matters, published_at, collected_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     article['title'], article.get('translated_title'),
                     article['url'], article['source'],
@@ -97,7 +97,8 @@ def insert_article(article: dict) -> int | None:
                     json.dumps(article.get('tags', [])),
                     json.dumps(article.get('keywords', [])),
                     article.get('why_it_matters', ''),
-                    article.get('published_at')
+                    article.get('published_at'),
+                    article.get('collected_at')  # preserve original collection time
                 )
             )
             return cursor.lastrowid
