@@ -90,6 +90,23 @@ Started: $(date)
   - `export-seed.py` output identical this run (562 articles) — local DB in sync with seed; no seed churn.
 ---
 
+## [2026-08-30] - Fix silent article loss + re-categorize archive (was 100% "other")
+- **Bug:** Every article in every DB was category "other"; production /api/stats showed by_category all-"other". Two root causes found:
+  1. **Stale CHECK constraint (data loss):** DBs created before the 6-category taxonomy have `category CHECK(category IN ('service','trend','policy','other'))`. `CREATE TABLE IF NOT EXISTS` never migrates it, so every new-format insert ('charger_install' etc.) failed the CHECK → `insert_article()` caught IntegrityError and silently discarded the article as a "duplicate URL". The weekly collect pipeline was quietly dropping most new articles. Both local DBs (562 + 596 rows) and prod had the legacy check.
+  2. **Keyword gaps:** `CATEGORY_KEYWORDS` in sources.py missed the most common English terms — "ev charging", "charging network", "charger". Even with a working CHECK, 419/562 articles fell through to "other".
+- **Fix:**
+  - db.py `init_db()`: detect legacy CHECK (sqlite_master sql contains 'service' but not 'government_policy') → rebuild articles table with current schema (preserve ids/rows/indexes; idempotent; no-op on fresh DBs). Self-heals cron + dev DBs on next boot.
+  - sources.py: added high-signal keywords — government_policy: +subsidies, +정부; charger_install: +ev charging, +charging network, +charger, +electric vehicle charging, +recarga, +cargador, +충전, +充電; grid_pricing: +charging tariff, +energy price, +power price; ev_sales_stats: +ev market, +ev registrations, +record sales.
+  - Backfilled categories across BOTH DBs with fixed assign_category (333/596 rows changed), synced freshest DB (596 rows; was 562 in this workspace) into data/, re-exported seed_data.json (596 articles, 3 reports, 25 metrics — no data lost).
+- **Verified:** migration on scratch copy (rows preserved, idempotent, new-category insert OK); py_compile OK; tsc -b OK; vite build OK; TestClient: stats by_category shows real distribution, category filter + search+category work.
+- **Files changed:** backend/app/db.py, backend/app/sources.py, backend/app/seed_data.json
+- **Learnings:**
+  - `CREATE TABLE IF NOT EXISTS` migrates nothing for existing tables — schema drift (CHECK constraints, column sets) silently accumulates. init_db must actively detect-and-rebuild legacy shapes (this was the US-001 lesson, reapplied to the CHECK constraint).
+  - `insert_article` catching ALL IntegrityErrors as "duplicate URL" hides real constraint violations — a stale CHECK caused silent article loss for weeks. Root-cause fix at the schema level, one guard in the shared migration.
+  - `/home/don/projects/ev-pulse` (cron workspace) and `/home/don/ev-pulse` (Ralph workspace) are separate clones; Ralph workspace was 2 commits behind (weekly seed refresh). Pulled ff before working; after push, re-sync cron clone so next weekly seed sync doesn't conflict.
+  - Remaining ~263 "other" is genuinely off-topic/weak-signal content (battery, US/EU news that slipped geo filter, generic EV explainers) — diminishing returns past this keyword set.
+---
+
 ## [2026-08-23] - Fix CSV export ignoring search query (q param)
 - **Bug:** Frontend CSV Export button sends `q` (search query) to `/api/articles/csv`, but the endpoint had no `q` parameter — the param was silently dropped and search-filtered exports returned the full unfiltered archive (up to 10000 rows). A user searching "Shell" then exporting got every article.
 - **Fix:** Added `q` param to `export_csv` in backend/app/main.py; when present, routes through `search_articles(query=q, ...)` (matches English fields too, sorts by relevance), else falls back to `get_articles`. Frontend already sent `q` — no frontend change needed.

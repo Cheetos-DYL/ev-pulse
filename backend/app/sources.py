@@ -203,10 +203,10 @@ CATEGORY_NAMES = {
 
 CATEGORY_KEYWORDS = {
     "government_policy": [
-        "subsidy", "incentive", "regulation", "mandate", "policy", "government",
+        "subsidy", "subsidies", "incentive", "regulation", "mandate", "policy", "government",
         "ministry", "department of", "public consultation", "tax credit",
         "grant", "funding program", "legislation", "decree", "law",
-        "보조금", "정책", "규제", "법안", "지원금",
+        "보조금", "정책", "규제", "법안", "지원금", "정부",
         "補助金", "政策", "規制", "補助",
         "subsídio", "incentivo", "regulamentação", "política",
         "subvención", "incentivo", "regulación", "política",
@@ -223,8 +223,10 @@ CATEGORY_KEYWORDS = {
         "charging station", "charging point", "charger installation",
         "charging infrastructure", "charging hub", "charger deployment",
         "fast charging", "ultra-fast", "supercharger",
-        "충전소", "충전기", "급속 충전", "충전 인프라",
-        "充電スタンド", "充電インフラ", "充電器",
+        "ev charging", "charging network", "charger", "electric vehicle charging",
+        "recarga", "cargador",
+        "충전소", "충전기", "급속 충전", "충전 인프라", "충전",
+        "充電スタンド", "充電インフラ", "充電器", "充電",
         "estação de carga", "carregador", "infraestrutura de carga",
         "estación de carga", "punto de recarga", "infraestructura de carga",
     ],
@@ -240,6 +242,7 @@ CATEGORY_KEYWORDS = {
         "electricity price", "tariff", "grid capacity", "demand charge",
         "time-of-use", "v2g", "vehicle-to-grid", "smart charging",
         "renewable energy", "solar charging", "grid integration",
+        "charging tariff", "energy price", "power price",
         "전기 요금", "전력망", "충전 요금",
         "電気料金", "電力網", "充電料金",
         "tarifa", "preço da eletricidade", "rede elétrica",
@@ -248,6 +251,7 @@ CATEGORY_KEYWORDS = {
     "ev_sales_stats": [
         "ev sales", "ev adoption", "ev market share", "ev registration",
         "ev penetration", "ev fleet", "electric vehicle sales",
+        "ev market", "ev registrations", "record sales",
         "전기차 판매", "EV 판매량", "전기차 보급",
         "EV販売", "電気自動車販売", "EV普及",
         "venda de veículos elétricos", "adoção de EV",

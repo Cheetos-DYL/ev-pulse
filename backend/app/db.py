@@ -61,6 +61,49 @@ def init_db():
             except Exception:
                 pass
 
+    # Migrate legacy DBs whose category CHECK predates the 6-category taxonomy
+    # (only allowed service/trend/policy/other). New-format inserts then fail the
+    # CHECK and insert_article() silently discards them as "duplicates" — which
+    # wiped out every non-'other' article in old archives. Rebuild the table with
+    # the current schema when the stale CHECK is detected (no-op on fresh DBs).
+    with get_connection() as conn:
+        row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='articles'").fetchone()
+        table_sql = row['sql'] if row else ''
+        if 'service' in table_sql and 'government_policy' not in table_sql:
+            conn.executescript("""
+                ALTER TABLE articles RENAME TO articles_legacy;
+                CREATE TABLE articles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    translated_title TEXT,
+                    url TEXT UNIQUE NOT NULL,
+                    source TEXT NOT NULL,
+                    region TEXT NOT NULL,
+                    country TEXT,
+                    language TEXT DEFAULT 'en',
+                    summary TEXT,
+                    content TEXT,
+                    relevance_score REAL DEFAULT 0,
+                    category TEXT CHECK(category IN ('government_policy', 'ma_partnership', 'charger_install', 'charging_standards', 'grid_pricing', 'ev_sales_stats', 'other')),
+                    tags TEXT DEFAULT '[]',
+                    published_at TEXT,
+                    collected_at TEXT DEFAULT (datetime('now')),
+                    analyzed INTEGER DEFAULT 0,
+                    keywords TEXT DEFAULT '[]',
+                    why_it_matters TEXT DEFAULT ''
+                );
+                INSERT INTO articles (id, title, translated_title, url, source, region, country, language, summary, content, relevance_score, category, tags, published_at, collected_at, analyzed, keywords, why_it_matters)
+                    SELECT id, title, translated_title, url, source, region, country, language, summary, content,
+                           relevance_score, category, tags, published_at, collected_at, analyzed,
+                           COALESCE(keywords, '[]'), COALESCE(why_it_matters, '')
+                    FROM articles_legacy;
+                DROP TABLE articles_legacy;
+                CREATE INDEX IF NOT EXISTS idx_articles_region ON articles(region);
+                CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
+                CREATE INDEX IF NOT EXISTS idx_articles_relevance ON articles(relevance_score DESC);
+                CREATE INDEX IF NOT EXISTS idx_articles_collected ON articles(collected_at DESC);
+            """)
+
 
 @contextmanager
 def get_connection():
