@@ -116,3 +116,18 @@ Started: $(date)
   - Frontend/backend param contract drift is silent: the CSV endpoint predates the search feature, so `q` was added to the button but never to the endpoint. When adding a query param to a frontend call, grep the target endpoint for it before shipping.
   - `search_articles` is the single choke point for all query filtering now (search endpoint + CSV export) — consistent English-field matching for free.
 ---
+
+## [2026-09-06] - Fix recency scoring never decaying (tz-naive RSS dates) + re-score archive
+- **Bug:** `_recency_score()` in analyzer.py computed `days_old = now(UTC-aware) - published_dt(naive)` — the RSS scraper stores `datetime(*published_parsed[:6]).isoformat()`, which carries NO timezone. The subtraction raised TypeError on every call and the except clause silently returned the flat 10.0 default. Verified: **591/591 dated articles were naive**, so recency was pinned at 10.0 forever — old articles never decayed to 0 (inflating stale content into graph/search) and fresh articles never got their full 20.
+- **Fix:** In `_recency_score`, `if published_dt.tzinfo is None: published_dt = published_dt.replace(tzinfo=timezone.utc)` before subtracting. One guard, every caller fixed.
+- **Archive re-score:** Ran a one-time re-score on BOTH DBs (Ralph + cron clones, 632 articles each) with the fixed `compute_relevance_score` — relevance_score only; categories/keywords/why_it_matters untouched. Results: score-0 articles 414 → 0; fresh articles now ~25-28, >30-day-old decay to ~5-15. Synced the fresher cron DB (632, +36 from 09-01 collection, was 596) into Ralph workspace per established pattern.
+- **UI scale alignment** (scores are 0-100 model, realistically 0-40): graph relevance slider was 0-9 (useless on this scale) → 0-50 step 5; archive "Score ≥ 5" toggle → "Score ≥ 15" (matches the weekly digest inclusion threshold).
+- **Also discovered (NOT fixed, noted):** `insert_article` never persists the `analyzed` flag — ALL 632 articles show `analyzed=0`. Latent: `/api/reanalyze` works around it via translated_title checks, but the column is dead weight. Insert statement omits the column; fix = add `analyzed` to INSERT when it matters.
+- **Verified:** recency self-check (fresh=20/mid=10/old=0) on both clones; py_compile OK; tsc -b OK; vite build OK; TestClient: stats 632 articles, graph 200 nodes/220 backlinks, search works. Seed re-exported (632 articles, 3 reports, 25 metrics — no data lost). Pushed ae3f8e7; cron clone ff-pulled to same commit (its previous local-only "weekly seed refresh" c9fdf6c had actually been pushed — Ralph clone's remote ref was stale, first push was rejected; rebased onto origin/master, took re-scored seed on conflict).
+- **Learnings:**
+  - `datetime.now(timezone.utc) - naive_dt` raises TypeError, and a bare `except (ValueError, TypeError): return default` turns that into a silent logic pin — the default value becomes the ONLY value. When a scorer/counter has an except-with-default, verify the happy path actually executes (593/593 pinning at 10 was the tell).
+  - RSS `published_parsed` → `datetime(*parsed[:6])` is always tz-naive; any code comparing it to aware `now` needs the naive→UTC normalize.
+  - Cron clone may be AHEAD of the Ralph clone (its weekly push succeeded); before pushing, `git fetch` first — `git status` only compares against the stale local remote-tracking ref.
+  - Re-scoring is deterministic per-day; run it on BOTH clones in the same session or the next weekly seed refresh silently reverts the scores.
+  - Frontend relevance cutoffs (graph slider, Score toggle) were tuned against the broken 0-30 scale; after fixing a score model, audit every hardcoded cutoff, not just the backend.
+---
