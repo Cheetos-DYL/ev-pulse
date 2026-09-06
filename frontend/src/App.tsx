@@ -364,7 +364,7 @@ function ArticlesPage() {
             {label}
           </button>
         ))}
-        <button className={`filter-btn ${minScore >= 5 ? 'active' : ''}`} onClick={() => setMinScore(minScore >= 5 ? 0 : 5)}>Score ≥ 5</button>
+        <button className={`filter-btn ${minScore >= 15 ? 'active' : ''}`} onClick={() => setMinScore(minScore >= 15 ? 0 : 15)}>Score ≥ 15</button>
       </div>
 
       {loading ? (
@@ -957,12 +957,12 @@ function GraphPage({ onNavigate }: { onNavigate: (p: Page, param?: string) => vo
         <div className="graph-relevance-filter">
           <label>Min relevance: <strong>{minRelevance}</strong></label>
           <input
-            type="range" min="0" max="9" step="1"
+            type="range" min="0" max="50" step="5"
             value={minRelevance}
             onChange={e => setMinRelevance(Number(e.target.value))}
           />
           <span className="filter-labels">
-            <span>0</span><span>9</span>
+            <span>0</span><span>50</span>
           </span>
         </div>
       </div>

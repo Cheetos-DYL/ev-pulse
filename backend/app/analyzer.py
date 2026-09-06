@@ -206,7 +206,13 @@ def _recency_score(article: dict) -> float:
             published_dt = datetime.fromisoformat(published.replace('Z', '+00:00'))
         else:
             published_dt = published
-        
+
+        # RSS published_parsed timestamps carry no tz — assume UTC, otherwise the
+        # aware-vs-naive subtraction raises TypeError and recency silently pins at
+        # 10.0 for EVERY article (no decay, fresh articles also robbed of full 20).
+        if published_dt.tzinfo is None:
+            published_dt = published_dt.replace(tzinfo=timezone.utc)
+
         now = datetime.now(timezone.utc)
         days_old = (now - published_dt).total_seconds() / 86400.0
         
